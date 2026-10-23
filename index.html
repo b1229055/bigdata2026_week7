@@ -78,7 +78,15 @@
 
       <div class="simulator-layout">
         <div class="body-stage" id="bodyStage">
-          <img class="body-image" src="assets/digestive-system-zh-hant.svg" alt="人體消化系統示意圖" />
+          <img
+            id="bodyImage"
+            class="body-image"
+            src="assets/digestive-system-zh-hant.svg"
+            alt="人體消化系統示意圖"
+            loading="eager"
+            decoding="sync"
+            draggable="false"
+          />
 
           <div id="foodParticles" class="food-particles" aria-live="polite"></div>
         </div>
@@ -98,6 +106,7 @@
             <span>消化進度</span>
             <div class="progress-track"><div id="digestProgress" class="progress-fill"></div></div>
           </div>
+          <p id="focusWarning" class="status-warning" role="alert" hidden></p>
           <p id="scienceNote" class="science-note">先選擇食物，再開始模擬。</p>
         </aside>
       </div>
@@ -110,38 +119,54 @@
           <label>
             速度
             <select id="speedSelect">
-              <option value="60">1×</option>
-              <option value="300" selected>5×</option>
-              <option value="900">15×</option>
-              <option value="3600">60×</option>
+              <option value="0.5">0.5×</option>
+              <option value="1" selected>1×</option>
+              <option value="5">5×</option>
+              <option value="15">15×</option>
+              <option value="60">60×</option>
             </select>
           </label>
         </div>
-        <input id="timeline" type="range" min="0" max="4320" value="0" step="1" aria-label="消化時間軸" />
+        <input id="timeline" type="range" min="0" max="4320" value="0" step="1" list="timelineTicks" aria-label="消化時間軸" />
+        <datalist id="timelineTicks">
+          <option value="0"></option><option value="5"></option><option value="10"></option>
+          <option value="15"></option><option value="20"></option><option value="25"></option>
+          <option value="30"></option><option value="35"></option><option value="40"></option>
+          <option value="45"></option><option value="50"></option><option value="55"></option>
+          <option value="60"></option><option value="360"></option><option value="720"></option>
+          <option value="1440"></option><option value="2880"></option><option value="4320"></option>
+        </datalist>
+        <div class="timeline-early-wrap" aria-label="前一小時每五分鐘刻度">
+          <div class="timeline-early-marks">
+            <span>0</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span>
+            <span>30</span><span>35</span><span>40</span><span>45</span><span>50</span><span>55</span><span>60 分</span>
+          </div>
+        </div>
         <div class="timeline-marks">
           <span>0 分</span><span>6 小時</span><span>12 小時</span><span>24 小時</span><span>48 小時</span><span>72 小時</span>
         </div>
+        <p id="timelineWarning" class="timeline-warning" role="status" hidden></p>
       </div>
 
-      <div id="mealLegend" class="meal-legend"></div>
+      <div class="meal-legend-heading">
+        <span>目前餐點食物列表</span>
+        <span id="legendCount">尚未載入</span>
+      </div>
+      <div id="mealLegend" class="meal-legend" aria-label="目前餐點食物列表"></div>
     </section>
   </main>
 
   <section class="learning-section">
     <div class="learning-card">
       <p class="step-label">觀察重點</p>
-      <h2>同一餐中的食物，不一定一起前進</h2>
-      <p>液體通常較快離開胃部；高脂肪、顆粒較大或較難消化的固體，往往會停留較久。蔬菜中的營養可被吸收，但部分纖維會進入大腸。</p>
+      <h2 id="observationTitle">同一餐中的食物，不一定一起前進</h2>
+      <p id="observationText">先選擇食物並開始模擬，再觀察不同食物在消化道中的速度差異。</p>
     </div>
     <div class="learning-card challenge-card">
       <p class="step-label">挑戰題</p>
-      <h2 id="challengeQuestion">水、米飯與牛排，誰通常最早離開胃？</h2>
-      <div class="challenge-options">
-        <button data-answer="water">水</button>
-        <button data-answer="rice">米飯</button>
-        <button data-answer="steak">牛排</button>
-      </div>
-      <p id="challengeFeedback" class="challenge-feedback"></p>
+      <h2>依目前餐點回答問題</h2>
+      <p id="challengeSummary" class="challenge-summary">載入餐點後會依食物種類隨機產生 3～10 題。</p>
+      <div id="challengeQuestions" class="challenge-questions" aria-live="polite"></div>
     </div>
   </section>
 
@@ -156,6 +181,7 @@
     <button id="closeTourBtn" class="primary">開始探索</button>
   </dialog>
 
+  <script src="question-bank.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

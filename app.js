@@ -28,10 +28,13 @@ const ORGANS = [
   { key:'out', name:'已排出體外', pos:[50,98], state:'旅程完成', digest:1, absorb:.95 }
 ];
 
-const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null };
+const MAX_TIMELINE = 4320;
+const PLAY_TICK_MS = 100;
+const SIM_MINUTES_PER_REAL_SECOND = 2;
+const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null, quizQuestions:[], quizIndex:0, quizAnswered:false, quizCorrect:0 };
 
 const els = Object.fromEntries([
-  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','foodParticles','mealLegend','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeFeedback'
+  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','foodParticles','mealLegend','legendCount','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','observationTitle','observationText','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
 ].map(id => [id, document.getElementById(id)]));
 
 function renderFoodCards(){
@@ -65,6 +68,7 @@ function syncFoodSelectionUI(){
   els.presetGrid.querySelectorAll('.preset-card').forEach(button => {
     button.classList.toggle('active', button.dataset.presetId === state.presetId);
   });
+  renderObservation();
 }
 
 function renderPresets(){
@@ -101,41 +105,37 @@ function buildMeal(){
   const portion = Number(els.portionSelect.value);
   const chew = Number(els.chewSelect.value);
   const mixFactor = 1 + Math.max(0, state.selected.size - 2) * .04;
-  const maxTimeline = 4320;
-  const fixedMouth = 3;
-  const fixedEsophagus = 2;
-  const exitBuffer = 1;
   state.meal = [...state.selected].map((id, index) => {
     const food = FOODS.find(f => f.id === id);
     const variance = 0.94 + ((index * 7) % 11) / 100;
     const factor = portion * chew * mixFactor * variance;
     const largeDuration = Math.max(food.large, 90) * factor;
-    const rawTailDuration = (food.stomach + food.small) * factor + largeDuration + 300 * factor;
-    const availableTailDuration = maxTimeline - fixedMouth - fixedEsophagus - exitBuffer;
-    const fitFactor = Math.min(1, availableTailDuration / rawTailDuration);
-    const mouthEnd = fixedMouth;
-    const esophagusEnd = mouthEnd + fixedEsophagus;
-    const stomachEnd = esophagusEnd + food.stomach * factor * fitFactor;
-    const smallEnd = stomachEnd + food.small * factor * fitFactor;
-    const largeEnd = smallEnd + largeDuration * fitFactor;
-    const rectumEnd = Math.min(maxTimeline - exitBuffer, largeEnd + 300 * factor * fitFactor);
-    return { ...food, times:{ mouthEnd, esophagusEnd, stomachEnd, smallEnd, largeEnd, rectumEnd } };
+    const mouthEnd = 3;
+    const esophagusEnd = mouthEnd + 2;
+    const stomachEnd = esophagusEnd + food.stomach * factor;
+    const smallEnd = stomachEnd + food.small * factor;
+    const largeEnd = smallEnd + largeDuration;
+    const rectumEnd = largeEnd + 300 * factor;
+    return { ...food, times:{ mouthEnd, esophagusEnd, stomachEnd, smallEnd, largeEnd, rectumEnd }, completedWithinTimeline: rectumEnd < MAX_TIMELINE };
   });
   state.focusId = state.meal[0].id;
   state.time = 0;
   els.timeline.value = 0;
   renderLegend();
   renderSimulation();
+  renderObservation();
+  renderQuiz(state.meal.map(food => food.id));
 }
 
 function getFoodStage(food, t){
   const x = food.times;
-  if(t <= x.mouthEnd) return stageData(ORGANS[0], t / x.mouthEnd, food);
-  if(t <= x.esophagusEnd) return stageData(ORGANS[1], (t-x.mouthEnd)/(x.esophagusEnd-x.mouthEnd), food);
-  if(t <= x.stomachEnd) return stageData(ORGANS[2], (t-x.esophagusEnd)/(x.stomachEnd-x.esophagusEnd), food);
-  if(t <= x.smallEnd) return stageData(ORGANS[3], (t-x.stomachEnd)/(x.smallEnd-x.stomachEnd), food);
-  if(t <= x.largeEnd) return stageData(ORGANS[4], (t-x.smallEnd)/(x.largeEnd-x.smallEnd), food);
-  if(t <= x.rectumEnd) return stageData(ORGANS[5], (t-x.largeEnd)/(x.rectumEnd-x.largeEnd), food);
+  const time = Math.max(0, Math.min(MAX_TIMELINE, t));
+  if(time <= x.mouthEnd) return stageData(ORGANS[0], time / x.mouthEnd, food);
+  if(time <= x.esophagusEnd) return stageData(ORGANS[1], (time-x.mouthEnd)/(x.esophagusEnd-x.mouthEnd), food);
+  if(time <= x.stomachEnd) return stageData(ORGANS[2], (time-x.esophagusEnd)/(x.stomachEnd-x.esophagusEnd), food);
+  if(time <= x.smallEnd) return stageData(ORGANS[3], (time-x.stomachEnd)/(x.smallEnd-x.stomachEnd), food);
+  if(time <= x.largeEnd) return stageData(ORGANS[4], (time-x.smallEnd)/(x.largeEnd-x.smallEnd), food);
+  if(time <= x.rectumEnd) return stageData(ORGANS[5], (time-x.largeEnd)/(x.rectumEnd-x.largeEnd), food);
   return stageData(ORGANS[6], 1, food);
 }
 
@@ -160,11 +160,15 @@ function renderSimulation(){
   els.timeLabel.textContent = formatTime(state.time);
   els.foodParticles.innerHTML = state.meal.map(food => {
     const data = getFoodStage(food, state.time);
-    const opacity = data.organ.key === 'out' ? .25 : 1;
+    const incompleteAtEnd = state.time >= MAX_TIMELINE && !food.completedWithinTimeline;
+    const opacity = data.organ.key === 'out' || incompleteAtEnd ? .25 : 1;
     const scale = Math.max(.65, 1 - data.digest * .28);
-    return `<button class="food-particle ${food.id===state.focusId?'focused':''}" data-id="${food.id}" style="left:${data.pos[0]}%;top:${data.pos[1]}%;background:${food.color};opacity:${opacity};transform:translate(-50%,-50%) scale(${scale})" title="${food.name}">${food.icon}</button>`;
+    const warning = incompleteAtEnd ? '<span class="food-warning" aria-hidden="true">⚠</span>' : '';
+    const label = incompleteAtEnd ? `${food.name}，72 小時仍未完成消化` : food.name;
+    return `<button class="food-particle ${food.id===state.focusId?'focused':''} ${incompleteAtEnd?'incomplete':''}" data-id="${food.id}" aria-label="${label}" style="left:${data.pos[0]}%;top:${data.pos[1]}%;background:${food.color};opacity:${opacity};transform:translate(-50%,-50%) scale(${scale})" title="${label}">${food.icon}${warning}</button>`;
   }).join('');
   els.foodParticles.querySelectorAll('.food-particle').forEach(btn => btn.addEventListener('click', () => { state.focusId = btn.dataset.id; renderSimulation(); renderLegend(); }));
+  renderTimelineWarning();
   renderFocus();
 }
 
@@ -179,18 +183,28 @@ function renderFocus(){
     els.focusNext.textContent='—';
     els.digestProgress.style.width='0%';
     els.scienceNote.textContent='先選擇食物，再開始模擬。';
+    els.focusWarning.hidden = true;
     return;
   }
   const data = getFoodStage(food, state.time);
+  const incompleteAtEnd = state.time >= MAX_TIMELINE && !food.completedWithinTimeline;
   els.focusFoodName.textContent = `${food.icon} ${food.name}`;
   els.focusSwatch.style.background = food.color;
   els.focusOrgan.textContent = data.organ.name;
   els.focusState.textContent = getStateText(food, data);
   els.focusDigestion.textContent = `${Math.round(data.digest*100)}%`;
   els.focusAbsorption.textContent = `${Math.round(data.absorb*100)}%`;
-  els.focusNext.textContent = getNextText(food, data.organ.key);
+  els.focusNext.textContent = incompleteAtEnd ? '尚未完成，停留於目前器官' : getNextText(food, data.organ.key);
   els.digestProgress.style.width = `${Math.round(data.digest*100)}%`;
   els.scienceNote.textContent = food.note;
+  els.focusWarning.hidden = !incompleteAtEnd;
+  els.focusWarning.textContent = incompleteAtEnd ? '⚠ 72 小時結束時仍未完成消化，食物已停留在目前器官。' : '';
+}
+
+function renderTimelineWarning(){
+  const unfinished = state.meal.filter(food => state.time >= MAX_TIMELINE && !food.completedWithinTimeline);
+  els.timelineWarning.hidden = unfinished.length === 0;
+  els.timelineWarning.textContent = unfinished.length ? `⚠ ${unfinished.length} 種食物在 72 小時內尚未完成消化，請點選食物查看停留器官。` : '';
 }
 
 function getStateText(food, data){
@@ -209,8 +223,87 @@ function getNextText(food, key){
 }
 
 function renderLegend(){
-  els.mealLegend.innerHTML = state.meal.map(food => `<button class="legend-item ${food.id===state.focusId?'active':''}" data-id="${food.id}"><span class="legend-dot" style="background:${food.color}"></span>${food.icon} ${food.name}</button>`).join('');
+  els.legendCount.textContent = state.meal.length ? `${state.meal.length} 種` : '尚未載入';
+  els.mealLegend.innerHTML = state.meal.length ? state.meal.map((food, index) => `<button type="button" class="legend-item ${food.id===state.focusId?'active':''}" data-id="${food.id}"><span class="legend-index">${index + 1}</span><span class="legend-dot" style="background:${food.color}"></span><span>${food.icon} ${food.name}</span></button>`).join('') : '<p class="legend-empty">選擇餐點後，這裡會列出每一種食物。</p>';
   els.mealLegend.querySelectorAll('.legend-item').forEach(btn => btn.addEventListener('click',()=>{ state.focusId=btn.dataset.id; renderLegend(); renderSimulation(); }));
+}
+
+function renderObservation(){
+  const foods = state.meal.length ? state.meal : [...state.selected].map(id => FOODS.find(food => food.id === id)).filter(Boolean);
+  const ids = new Set(foods.map(food => food.id));
+  if(!foods.length){
+    els.observationTitle.textContent = '同一餐中的食物，不一定一起前進';
+    els.observationText.textContent = '先選擇食物並開始模擬，再觀察不同食物在消化道中的速度差異。';
+    return;
+  }
+  const names = foods.map(food => food.name).join('、');
+  if(ids.has('water') && [...ids].some(id => ['rice','steak','fried','hard'].includes(id))){
+    els.observationTitle.textContent = '液體與固體的速度差異';
+    els.observationText.textContent = `這一餐有${names}。可以拖到前 1 小時，觀察水通常較快離開胃部，而固體仍在胃中攪拌。`;
+  } else if([...ids].some(id => ['fried','steak','hard'].includes(id))){
+    els.observationTitle.textContent = '高脂肪或粗硬食物會停留較久';
+    els.observationText.textContent = `這一餐包含${names}。份量調大或咀嚼不足時，胃部與腸道階段可能延長，72 小時結束時也可能出現未完成警告。`;
+  } else if([...ids].some(id => ['vegetable'].includes(id))){
+    els.observationTitle.textContent = '纖維與水分回收';
+    els.observationText.textContent = `觀察${names}進入大腸後的變化：部分營養已在小腸吸收，纖維與殘渣則會在大腸回收水分。`;
+  } else if([...ids].some(id => ['bubbleTea','pearl'].includes(id))){
+    els.observationTitle.textContent = '混合點心不會同步前進';
+    els.observationText.textContent = `珍珠與飲料的質地不同，${names}在模型中會各自依食物資料移動，適合用來比較混合餐點的差異。`;
+  } else if([...ids].some(id => ['alcohol','drink'].includes(id))){
+    els.observationTitle.textContent = '飲料的吸收與消化不同';
+    els.observationText.textContent = `這一餐包含${names}。液體通常較快離開胃部，但糖分或酒精的吸收與代謝仍和單純補水不同。`;
+  } else {
+    els.observationTitle.textContent = '份量與咀嚼會改變模擬速度';
+    els.observationText.textContent = `目前選擇${names}。可以切換份量與咀嚼程度，再重新載入餐點，比較食物在各器官的停留時間。`;
+  }
+}
+
+function shuffle(items){
+  const result = [...items];
+  for(let i = result.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function renderQuiz(selectedIds){
+  const bank = Array.isArray(window.QUESTION_BANK) ? window.QUESTION_BANK : [];
+  const selected = new Set(selectedIds);
+  const questionCount = selected.size ? Math.min(10, Math.max(3, selected.size)) : 3;
+  const related = bank.filter(question => question.foods.some(id => selected.has(id)));
+  const fallback = bank.filter(question => !question.foods.some(id => selected.has(id)));
+  const pool = [...new Map([...shuffle(related), ...shuffle(fallback)].map(question => [question.id, question])).values()];
+  state.quizQuestions = pool.slice(0, questionCount);
+  state.quizIndex = 0;
+  state.quizAnswered = false;
+  state.quizCorrect = 0;
+  els.challengeSummary.textContent = selected.size ? `依目前選取的 ${selected.size} 種食物，準備回答 ${state.quizQuestions.length} 題。` : '載入餐點後會依食物種類隨機產生 3～10 題。';
+  renderCurrentQuiz();
+}
+
+function renderCurrentQuiz(){
+  if(!state.quizQuestions.length){
+    els.challengeQuestions.innerHTML = '<p class="challenge-empty">目前沒有可用題目，請重新載入頁面。</p>';
+    return;
+  }
+  if(state.quizIndex >= state.quizQuestions.length){
+    const wrong = state.quizQuestions.length - state.quizCorrect;
+    els.challengeSummary.textContent = '本次挑戰已完成。';
+    els.challengeQuestions.innerHTML = `<div class="quiz-result" role="status"><strong>答題完成</strong><span>答對 ${state.quizCorrect} 題，答錯 ${wrong} 題。</span><button type="button" class="primary" data-action="restart-quiz">重新抽題</button></div>`;
+    return;
+  }
+  const question = state.quizQuestions[state.quizIndex];
+  els.challengeSummary.textContent = `第 ${state.quizIndex + 1} / ${state.quizQuestions.length} 題；回答後才能進入下一題。`;
+  els.challengeQuestions.innerHTML = `
+    <article class="challenge-question" data-question-id="${question.id}">
+      <h3>${state.quizIndex + 1}. ${question.question}</h3>
+      <div class="challenge-options">
+        ${question.options.map((option, optionIndex) => `<button type="button" class="challenge-option" data-option-index="${optionIndex}">${option}</button>`).join('')}
+      </div>
+      <p class="challenge-feedback" aria-live="polite"></p>
+    </article>
+  `;
 }
 
 function formatTime(minutes){
@@ -229,29 +322,32 @@ function togglePlay(){
     clearInterval(state.timer);
     state.timer = setInterval(()=>{
       const speed = Number(els.speedSelect.value);
-      state.time = Math.min(4320, state.time + speed/10);
+      state.time = Math.min(MAX_TIMELINE, state.time + speed * SIM_MINUTES_PER_REAL_SECOND * PLAY_TICK_MS / 1000);
       els.timeline.value = state.time;
       renderSimulation();
-      if(state.time >= 4320){ state.playing=false; els.playBtn.textContent='▶'; clearInterval(state.timer); }
-    },100);
+      if(state.time >= MAX_TIMELINE){ state.playing=false; els.playBtn.textContent='▶'; clearInterval(state.timer); }
+    },PLAY_TICK_MS);
   } else clearInterval(state.timer);
 }
 
 function jumpStage(direction){
   if(!state.meal.length) return;
-  const points = [...new Set(state.meal.flatMap(f => Object.values(f.times).map(Math.round)))].sort((a,b)=>a-b);
+  const points = [...new Set(state.meal.flatMap(f => Object.values(f.times).filter(point => point <= MAX_TIMELINE).map(Math.round)))].sort((a,b)=>a-b);
   const target = direction > 0 ? points.find(p => p > state.time + 1) : [...points].reverse().find(p => p < state.time - 1);
-  state.time = target ?? (direction > 0 ? 4320 : 0);
+  state.time = target ?? (direction > 0 ? MAX_TIMELINE : 0);
   els.timeline.value = state.time;
   renderSimulation();
 }
 
 function resetAll(){
-  state.selected.clear(); state.meal=[]; state.focusId=null; state.time=0; state.playing=false; state.presetId=null;
+  state.selected.clear(); state.meal=[]; state.focusId=null; state.time=0; state.playing=false; state.presetId=null; state.quizQuestions=[]; state.quizIndex=0; state.quizAnswered=false; state.quizCorrect=0;
   clearInterval(state.timer);
   els.selectedCount.textContent='0 種'; els.timeline.value=0; els.playBtn.textContent='▶'; els.mealLegend.innerHTML='';
   syncFoodSelectionUI();
+  renderLegend();
   renderSimulation();
+  renderObservation();
+  renderQuiz([]);
 }
 
 els.loadMealBtn.addEventListener('click', buildMeal);
@@ -262,17 +358,46 @@ els.nextBtn.addEventListener('click',()=>jumpStage(1));
 els.resetBtn.addEventListener('click',resetAll);
 els.startTourBtn.addEventListener('click',()=>els.tourDialog.showModal());
 els.closeTourBtn.addEventListener('click',()=>els.tourDialog.close());
-document.querySelectorAll('.challenge-options button').forEach(btn => btn.addEventListener('click',()=>{
-  document.querySelectorAll('.challenge-options button').forEach(b=>b.classList.remove('correct','wrong'));
-  if(btn.dataset.answer==='water'){
-    btn.classList.add('correct');
-    els.challengeFeedback.textContent='答對了！水通常最早離開胃部。';
-  } else {
-    btn.classList.add('wrong');
-    els.challengeFeedback.textContent='再想想看：液體通常比固體更快離開胃部。';
+els.challengeQuestions.addEventListener('click', event => {
+  const actionButton = event.target.closest('[data-action]');
+  if(actionButton?.dataset.action === 'restart-quiz'){
+    renderQuiz(state.meal.map(food => food.id));
+    return;
   }
-}));
+  const button = event.target.closest('.challenge-option');
+  if(!button) return;
+  if(state.quizAnswered) return;
+  const card = button.closest('.challenge-question');
+  const question = state.quizQuestions.find(item => item.id === card.dataset.questionId);
+  if(!question) return;
+  const selected = Number(button.dataset.optionIndex);
+  card.querySelectorAll('.challenge-option').forEach(option => option.classList.remove('correct','wrong'));
+  card.querySelectorAll('.challenge-option').forEach(option => { option.disabled = true; });
+  const feedback = card.querySelector('.challenge-feedback');
+  state.quizAnswered = true;
+  if(selected === question.answer){
+    state.quizCorrect += 1;
+    button.classList.add('correct');
+    feedback.textContent = `答對了！${question.explanation}`;
+  } else {
+    button.classList.add('wrong');
+    card.querySelector(`[data-option-index="${question.answer}"]`)?.classList.add('correct');
+    feedback.textContent = `答錯了。正確答案是「${question.options[question.answer]}」。${question.explanation}`;
+  }
+  feedback.insertAdjacentHTML('afterend', `<button type="button" class="next-question primary" data-action="next-quiz">${state.quizIndex + 1 === state.quizQuestions.length ? '查看結果' : '下一題'}</button>`);
+});
+
+els.challengeQuestions.addEventListener('click', event => {
+  if(event.target.closest('[data-action="next-quiz"]')){
+    state.quizIndex += 1;
+    state.quizAnswered = false;
+    renderCurrentQuiz();
+  }
+});
 
 renderFoodCards();
 renderPresets();
+renderLegend();
 renderSimulation();
+renderObservation();
+renderQuiz([]);
