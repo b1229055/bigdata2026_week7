@@ -56,16 +56,24 @@ function buildMeal(){
   const portion = Number(els.portionSelect.value);
   const chew = Number(els.chewSelect.value);
   const mixFactor = 1 + Math.max(0, state.selected.size - 2) * .04;
+  const maxTimeline = 4320;
+  const fixedMouth = 3;
+  const fixedEsophagus = 2;
+  const exitBuffer = 1;
   state.meal = [...state.selected].map((id, index) => {
     const food = FOODS.find(f => f.id === id);
     const variance = 0.94 + ((index * 7) % 11) / 100;
     const factor = portion * chew * mixFactor * variance;
-    const mouthEnd = 3;
-    const esophagusEnd = 5;
-    const stomachEnd = esophagusEnd + food.stomach * factor;
-    const smallEnd = stomachEnd + food.small * factor;
-    const largeEnd = smallEnd + food.large * factor;
-    const rectumEnd = Math.min(4320, largeEnd + 300 * factor);
+    const largeDuration = Math.max(food.large, 90) * factor;
+    const rawTailDuration = (food.stomach + food.small) * factor + largeDuration + 300 * factor;
+    const availableTailDuration = maxTimeline - fixedMouth - fixedEsophagus - exitBuffer;
+    const fitFactor = Math.min(1, availableTailDuration / rawTailDuration);
+    const mouthEnd = fixedMouth;
+    const esophagusEnd = mouthEnd + fixedEsophagus;
+    const stomachEnd = esophagusEnd + food.stomach * factor * fitFactor;
+    const smallEnd = stomachEnd + food.small * factor * fitFactor;
+    const largeEnd = smallEnd + largeDuration * fitFactor;
+    const rectumEnd = Math.min(maxTimeline - exitBuffer, largeEnd + 300 * factor * fitFactor);
     return { ...food, times:{ mouthEnd, esophagusEnd, stomachEnd, smallEnd, largeEnd, rectumEnd } };
   });
   state.focusId = state.meal[0].id;
@@ -81,7 +89,7 @@ function getFoodStage(food, t){
   if(t <= x.esophagusEnd) return stageData(ORGANS[1], (t-x.mouthEnd)/(x.esophagusEnd-x.mouthEnd), food);
   if(t <= x.stomachEnd) return stageData(ORGANS[2], (t-x.esophagusEnd)/(x.stomachEnd-x.esophagusEnd), food);
   if(t <= x.smallEnd) return stageData(ORGANS[3], (t-x.stomachEnd)/(x.smallEnd-x.stomachEnd), food);
-  if(food.large === 0 || t <= x.largeEnd) return stageData(ORGANS[4], food.large===0 ? 1 : (t-x.smallEnd)/(x.largeEnd-x.smallEnd), food);
+  if(t <= x.largeEnd) return stageData(ORGANS[4], (t-x.smallEnd)/(x.largeEnd-x.smallEnd), food);
   if(t <= x.rectumEnd) return stageData(ORGANS[5], (t-x.largeEnd)/(x.rectumEnd-x.largeEnd), food);
   return stageData(ORGANS[6], 1, food);
 }
