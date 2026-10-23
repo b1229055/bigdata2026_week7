@@ -12,6 +12,12 @@ const FOODS = [
   { id:'hard', name:'難以消化', icon:'🧱', category:'粗硬固體', color:'#6d7784', stomach:330, small:470, large:1900, digestibility:.62, note:'顆粒大、脂肪高或質地粗硬的食物，通常需要更長處理時間。' }
 ];
 
+const PRESET_MEALS = [
+  { id:'compare', name:'液體與固體比較', description:'水、米飯、牛排', foods:['water','rice','steak'] },
+  { id:'balanced', name:'一般餐點', description:'米飯、蔬菜、牛排', foods:['rice','vegetable','steak'] },
+  { id:'snack', name:'點心組合', description:'珍珠奶茶、珍珠、油炸食物', foods:['bubbleTea','pearl','fried'] }
+];
+
 const ORGANS = [
   { key:'mouth', name:'口腔', start:0, duration:3, pos:[50,18], state:'咀嚼並與唾液混合', digest:.03, absorb:0 },
   { key:'esophagus', name:'食道', start:3, duration:2, pos:[50,31], state:'食團經由蠕動向胃移動', digest:.05, absorb:0 },
@@ -22,10 +28,10 @@ const ORGANS = [
   { key:'out', name:'已排出體外', pos:[50,98], state:'旅程完成', digest:1, absorb:.95 }
 ];
 
-const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null };
+const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null };
 
 const els = Object.fromEntries([
-  'foodGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','foodParticles','mealLegend','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeFeedback'
+  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','foodParticles','mealLegend','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeFeedback'
 ].map(id => [id, document.getElementById(id)]));
 
 function renderFoodCards(){
@@ -42,10 +48,49 @@ function renderFoodCards(){
       const card = input.closest('.food-card');
       const id = card.dataset.id;
       input.checked ? state.selected.add(id) : state.selected.delete(id);
-      card.classList.toggle('selected', input.checked);
-      els.selectedCount.textContent = `${state.selected.size} 種`;
+      state.presetId = null;
+      syncFoodSelectionUI();
     });
   });
+}
+
+function syncFoodSelectionUI(){
+  els.foodGrid.querySelectorAll('.food-card').forEach(card => {
+    const input = card.querySelector('input');
+    const selected = state.selected.has(card.dataset.id);
+    input.checked = selected;
+    card.classList.toggle('selected', selected);
+  });
+  els.selectedCount.textContent = `${state.selected.size} 種`;
+  els.presetGrid.querySelectorAll('.preset-card').forEach(button => {
+    button.classList.toggle('active', button.dataset.presetId === state.presetId);
+  });
+}
+
+function renderPresets(){
+  els.presetGrid.innerHTML = PRESET_MEALS.map(preset => `
+    <button type="button" class="preset-card" data-preset-id="${preset.id}">
+      <strong>${preset.name}</strong>
+      <small>${preset.description}</small>
+    </button>
+  `).join('');
+  els.presetGrid.querySelectorAll('.preset-card').forEach(button => {
+    button.addEventListener('click', () => applyPresetMeal(button.dataset.presetId));
+  });
+}
+
+function applyPresetMeal(presetId){
+  const preset = PRESET_MEALS.find(item => item.id === presetId);
+  const presetFoods = preset?.foods?.map(id => FOODS.find(food => food.id === id)) || [];
+  if(!preset || !presetFoods.length || presetFoods.some(food => !food) || presetFoods.length !== preset.foods.length){
+    alert('預設餐點資料無效，請改用手動選擇食物。');
+    return;
+  }
+  state.selected.clear();
+  presetFoods.forEach(food => state.selected.add(food.id));
+  state.presetId = preset.id;
+  syncFoodSelectionUI();
+  buildMeal();
 }
 
 function buildMeal(){
@@ -202,11 +247,10 @@ function jumpStage(direction){
 }
 
 function resetAll(){
-  state.selected.clear(); state.meal=[]; state.focusId=null; state.time=0; state.playing=false;
+  state.selected.clear(); state.meal=[]; state.focusId=null; state.time=0; state.playing=false; state.presetId=null;
   clearInterval(state.timer);
-  document.querySelectorAll('.food-card').forEach(c=>c.classList.remove('selected'));
-  document.querySelectorAll('.food-card input').forEach(i=>i.checked=false);
   els.selectedCount.textContent='0 種'; els.timeline.value=0; els.playBtn.textContent='▶'; els.mealLegend.innerHTML='';
+  syncFoodSelectionUI();
   renderSimulation();
 }
 
@@ -230,4 +274,5 @@ document.querySelectorAll('.challenge-options button').forEach(btn => btn.addEve
 }));
 
 renderFoodCards();
+renderPresets();
 renderSimulation();

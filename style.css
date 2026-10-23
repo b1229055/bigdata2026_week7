@@ -123,6 +123,14 @@ button:hover { transform: translateY(-1px); }
 .food-icon { font-size: 1.65rem; }
 .food-card strong { display:block; font-size: .95rem; }
 .food-card small { color: var(--muted); font-size: .75rem; }
+.preset-section { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.preset-heading h3 { margin: 2px 0 8px; font-size: 1rem; }
+.preset-grid { display: grid; gap: 8px; }
+.preset-card { display: grid; gap: 3px; text-align: left; border: 1px solid var(--line); background: #f7fcfa; color: var(--text); padding: 10px 12px; border-radius: 14px; }
+.preset-card strong { font-size: .88rem; }
+.preset-card small { color: var(--muted); line-height: 1.35; }
+.preset-card:hover { border-color: var(--primary); background: #edf8f2; }
+.preset-card.active { outline: 3px solid rgba(36,135,109,.16); border-color: var(--primary); background: #e6f4ed; }
 .controls-stack { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
 label { display: grid; gap: 6px; color: var(--muted); font-size: .82rem; font-weight: 700; }
 select {
@@ -233,6 +241,8 @@ dialog li { margin-bottom:10px; line-height:1.6; }
   .food-icon { font-size: 1.35rem; }
   .food-card strong { font-size: .86rem; }
   .food-card small { font-size: .68rem; }
+  .preset-section { margin-top: 10px; padding-top: 10px; }
+  .preset-card { padding: 8px 10px; }
   .controls-stack { margin-top: 8px; }
   label { gap: 4px; font-size: .74rem; }
   select { padding: 6px 8px; border-radius: 10px; }
