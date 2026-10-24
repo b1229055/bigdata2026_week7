@@ -29,12 +29,16 @@ const ORGANS = [
 ];
 
 const MAX_TIMELINE = 4320;
+const TIMELINE_SLIDER_MAX = 4320;
+const EARLY_AXIS_SHARE = .42;
 const PLAY_TICK_MS = 100;
-const SIM_MINUTES_PER_REAL_SECOND = 2;
-const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null, quizQuestions:[], quizIndex:0, quizAnswered:false, quizCorrect:0 };
+const FIXED_MINUTES_PER_REAL_SECOND = 2;
+const SEGMENTED_EARLY_MINUTES_PER_REAL_SECOND = 1;
+const SEGMENTED_LATE_MINUTES_PER_REAL_SECOND = 5;
+const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null, flowMode:'fixed', quizQuestions:[], quizIndex:0, quizAnswered:false, quizCorrect:0 };
 
 const els = Object.fromEntries([
-  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','foodParticles','mealLegend','legendCount','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','observationTitle','observationText','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
+  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','flowModeFixedBtn','flowModeSegmentedBtn','speedNotice','foodParticles','mealLegend','legendCount','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','observationTitle','observationText','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
 ].map(id => [id, document.getElementById(id)]));
 
 function renderFoodCards(){
@@ -120,7 +124,7 @@ function buildMeal(){
   });
   state.focusId = state.meal[0].id;
   state.time = 0;
-  els.timeline.value = 0;
+  els.timeline.value = minutesToTimelinePosition(0);
   renderLegend();
   renderSimulation();
   renderObservation();
@@ -147,7 +151,11 @@ function stageData(organ, progress, food){
   if(organ.key === 'smallIntestine') { digest = .35 + progress * (.55 * food.digestibility); absorb = .03 + progress * (.79 * food.digestibility); }
   if(organ.key === 'largeIntestine') { digest = .88 + progress * .12; absorb = .78 + progress * .16; }
   const jitter = hashOffset(food.id);
-  const pos = [organ.pos[0] + jitter.x, organ.pos[1] + jitter.y];
+  const organIndex = ORGANS.findIndex(item => item.key === organ.key);
+  const nextOrgan = ORGANS[organIndex + 1];
+  const start = [organ.pos[0] + jitter.x, organ.pos[1] + jitter.y];
+  const end = nextOrgan ? [nextOrgan.pos[0] + jitter.x, nextOrgan.pos[1] + jitter.y] : start;
+  const pos = [start[0] + (end[0] - start[0]) * progress, start[1] + (end[1] - start[1]) * progress];
   return { organ, progress, digest:Math.min(1,digest), absorb:Math.min(.98,absorb), pos };
 }
 
@@ -156,20 +164,65 @@ function hashOffset(id){
   return { x:((n%9)-4) * 1.7, y:(((n*3)%7)-3) * 1.7 };
 }
 
+function timelinePositionToMinutes(position){
+  const earlyLimit = TIMELINE_SLIDER_MAX * EARLY_AXIS_SHARE;
+  const value = Math.max(0, Math.min(TIMELINE_SLIDER_MAX, Number(position) || 0));
+  if(value <= earlyLimit) return value / earlyLimit * 60;
+  return 60 + ((value - earlyLimit) / (TIMELINE_SLIDER_MAX - earlyLimit)) * (MAX_TIMELINE - 60);
+}
+
+function minutesToTimelinePosition(minutes){
+  const earlyLimit = TIMELINE_SLIDER_MAX * EARLY_AXIS_SHARE;
+  const value = Math.max(0, Math.min(MAX_TIMELINE, Number(minutes) || 0));
+  if(value <= 60) return value / 60 * earlyLimit;
+  return earlyLimit + ((value - 60) / (MAX_TIMELINE - 60)) * (TIMELINE_SLIDER_MAX - earlyLimit);
+}
+
+function isIncompleteAtEnd(food){
+  return state.time >= MAX_TIMELINE && !food.completedWithinTimeline;
+}
+
+function particleMarkup(food){
+  return `<button class="food-particle" data-id="${food.id}" aria-label="${food.name}" title="${food.name}"><span class="food-icon-mark">${food.icon}</span><span class="food-warning" aria-hidden="true" hidden>⚠</span></button>`;
+}
+
+function updateParticleButton(button, food, data){
+  const incompleteAtEnd = isIncompleteAtEnd(food);
+  const opacity = data.organ.key === 'out' ? .25 : 1;
+  const scale = Math.max(.65, 1 - data.digest * .28);
+  const label = incompleteAtEnd ? `${food.name}，72 小時仍未完成消化` : food.name;
+  button.classList.toggle('focused', food.id === state.focusId);
+  button.classList.toggle('incomplete', incompleteAtEnd);
+  button.style.left = `${data.pos[0]}%`;
+  button.style.top = `${data.pos[1]}%`;
+  button.style.background = food.color;
+  button.style.opacity = opacity;
+  button.style.transform = `translate(-50%,-50%) scale(${scale})`;
+  button.setAttribute('aria-label', label);
+  button.title = label;
+  const warning = button.querySelector('.food-warning');
+  warning.hidden = !incompleteAtEnd;
+  warning.setAttribute('aria-hidden', String(!incompleteAtEnd));
+}
+
 function renderSimulation(){
   els.timeLabel.textContent = formatTime(state.time);
-  els.foodParticles.innerHTML = state.meal.map(food => {
-    const data = getFoodStage(food, state.time);
-    const incompleteAtEnd = state.time >= MAX_TIMELINE && !food.completedWithinTimeline;
-    const opacity = data.organ.key === 'out' || incompleteAtEnd ? .25 : 1;
-    const scale = Math.max(.65, 1 - data.digest * .28);
-    const warning = incompleteAtEnd ? '<span class="food-warning" aria-hidden="true">⚠</span>' : '';
-    const label = incompleteAtEnd ? `${food.name}，72 小時仍未完成消化` : food.name;
-    return `<button class="food-particle ${food.id===state.focusId?'focused':''} ${incompleteAtEnd?'incomplete':''}" data-id="${food.id}" aria-label="${label}" style="left:${data.pos[0]}%;top:${data.pos[1]}%;background:${food.color};opacity:${opacity};transform:translate(-50%,-50%) scale(${scale})" title="${label}">${food.icon}${warning}</button>`;
-  }).join('');
-  els.foodParticles.querySelectorAll('.food-particle').forEach(btn => btn.addEventListener('click', () => { state.focusId = btn.dataset.id; renderSimulation(); renderLegend(); }));
+  els.timeline.setAttribute('aria-valuetext', formatTime(state.time));
+  const existing = [...els.foodParticles.querySelectorAll('.food-particle')];
+  const existingIds = existing.map(button => button.dataset.id).join('|');
+  const mealIds = state.meal.map(food => food.id).join('|');
+  if(existingIds !== mealIds){
+    els.foodParticles.innerHTML = state.meal.map(particleMarkup).join('');
+    els.foodParticles.querySelectorAll('.food-particle').forEach(btn => btn.addEventListener('click', () => { state.focusId = btn.dataset.id; renderSimulation(); renderLegend(); }));
+  }
+  state.meal.forEach(food => {
+    const button = els.foodParticles.querySelector(`[data-id="${food.id}"]`);
+    if(button) updateParticleButton(button, food, getFoodStage(food, state.time));
+  });
+  updateLegendWarnings();
   renderTimelineWarning();
   renderFocus();
+  renderSpeedNotice();
 }
 
 function renderFocus(){
@@ -224,8 +277,24 @@ function getNextText(food, key){
 
 function renderLegend(){
   els.legendCount.textContent = state.meal.length ? `${state.meal.length} 種` : '尚未載入';
-  els.mealLegend.innerHTML = state.meal.length ? state.meal.map((food, index) => `<button type="button" class="legend-item ${food.id===state.focusId?'active':''}" data-id="${food.id}"><span class="legend-index">${index + 1}</span><span class="legend-dot" style="background:${food.color}"></span><span>${food.icon} ${food.name}</span></button>`).join('') : '<p class="legend-empty">選擇餐點後，這裡會列出每一種食物。</p>';
+  els.mealLegend.innerHTML = state.meal.length ? state.meal.map((food, index) => `<button type="button" class="legend-item ${food.id===state.focusId?'active':''}" data-id="${food.id}" aria-label="${food.name}"><span class="legend-index">${index + 1}</span><span class="legend-dot" style="background:${food.color}"></span><span>${food.icon} ${food.name}</span><span class="legend-warning" aria-hidden="true" hidden>⚠</span></button>`).join('') : '<p class="legend-empty">選擇餐點後，這裡會列出每一種食物。</p>';
   els.mealLegend.querySelectorAll('.legend-item').forEach(btn => btn.addEventListener('click',()=>{ state.focusId=btn.dataset.id; renderLegend(); renderSimulation(); }));
+  updateLegendWarnings();
+}
+
+function updateLegendWarnings(){
+  els.mealLegend.querySelectorAll('.legend-item').forEach(button => {
+    const food = state.meal.find(item => item.id === button.dataset.id);
+    if(!food) return;
+    const incompleteAtEnd = isIncompleteAtEnd(food);
+    button.classList.toggle('incomplete', incompleteAtEnd);
+    button.setAttribute('aria-label', incompleteAtEnd ? `${food.name}，72 小時仍未完成消化` : food.name);
+    const warning = button.querySelector('.legend-warning');
+    if(warning){
+      warning.hidden = !incompleteAtEnd;
+      warning.setAttribute('aria-hidden', String(!incompleteAtEnd));
+    }
+  });
 }
 
 function renderObservation(){
@@ -270,14 +339,20 @@ function shuffle(items){
 function renderQuiz(selectedIds){
   const bank = Array.isArray(window.QUESTION_BANK) ? window.QUESTION_BANK : [];
   const selected = new Set(selectedIds);
-  const questionCount = selected.size ? Math.min(10, Math.max(3, selected.size)) : 3;
+  state.quizQuestions = [];
+  state.quizIndex = 0;
+  state.quizAnswered = false;
+  state.quizCorrect = 0;
+  if(!selected.size){
+    els.challengeSummary.textContent = '請先選擇食物，再按「把食物放入消化道」開始挑戰題。';
+    els.challengeQuestions.innerHTML = '<p class="challenge-empty">尚未載入餐點，請先選擇食物。</p>';
+    return;
+  }
+  const questionCount = Math.min(10, Math.max(3, selected.size));
   const related = bank.filter(question => question.foods.some(id => selected.has(id)));
   const fallback = bank.filter(question => !question.foods.some(id => selected.has(id)));
   const pool = [...new Map([...shuffle(related), ...shuffle(fallback)].map(question => [question.id, question])).values()];
   state.quizQuestions = pool.slice(0, questionCount);
-  state.quizIndex = 0;
-  state.quizAnswered = false;
-  state.quizCorrect = 0;
   els.challengeSummary.textContent = selected.size ? `依目前選取的 ${selected.size} 種食物，準備回答 ${state.quizQuestions.length} 題。` : '載入餐點後會依食物種類隨機產生 3～10 題。';
   renderCurrentQuiz();
 }
@@ -315,15 +390,43 @@ function formatTime(minutes){
   return rh ? `${d} 天 ${rh} 小時` : `${d} 天`;
 }
 
+function getMinutesPerSecond(){
+  const speed = Number(els.speedSelect.value) || 1;
+  if(state.flowMode === 'segmented'){
+    return speed * (state.time < 60 ? SEGMENTED_EARLY_MINUTES_PER_REAL_SECOND : SEGMENTED_LATE_MINUTES_PER_REAL_SECOND);
+  }
+  return speed * FIXED_MINUTES_PER_REAL_SECOND;
+}
+
+function renderSpeedNotice(){
+  const speed = Number(els.speedSelect.value) || 1;
+  const currentRate = getMinutesPerSecond();
+  const speedLabel = `${speed}×`;
+  if(state.flowMode === 'segmented'){
+    const phase = state.time < 60 ? '前 1 小時' : '後 71 小時';
+    els.speedNotice.textContent = `分段流速：${phase}目前為 ${speedLabel}，每實際 1 秒約前進 ${currentRate} 個模擬分鐘；跨過 60 分鐘後，1× 會改為每秒 5 分鐘。`;
+  } else {
+    els.speedNotice.textContent = `全程固定：${speedLabel} 每實際 1 秒約前進 ${currentRate} 個模擬分鐘；前 1 小時與後 71 小時使用相同速度。`;
+  }
+}
+
+function setFlowMode(mode){
+  state.flowMode = mode === 'segmented' ? 'segmented' : 'fixed';
+  els.flowModeFixedBtn.classList.toggle('active', state.flowMode === 'fixed');
+  els.flowModeSegmentedBtn.classList.toggle('active', state.flowMode === 'segmented');
+  els.flowModeFixedBtn.setAttribute('aria-pressed', String(state.flowMode === 'fixed'));
+  els.flowModeSegmentedBtn.setAttribute('aria-pressed', String(state.flowMode === 'segmented'));
+  renderSpeedNotice();
+}
+
 function togglePlay(){
   state.playing = !state.playing;
   els.playBtn.textContent = state.playing ? '⏸' : '▶';
   if(state.playing){
     clearInterval(state.timer);
     state.timer = setInterval(()=>{
-      const speed = Number(els.speedSelect.value);
-      state.time = Math.min(MAX_TIMELINE, state.time + speed * SIM_MINUTES_PER_REAL_SECOND * PLAY_TICK_MS / 1000);
-      els.timeline.value = state.time;
+      state.time = Math.min(MAX_TIMELINE, state.time + getMinutesPerSecond() * PLAY_TICK_MS / 1000);
+      els.timeline.value = minutesToTimelinePosition(state.time);
       renderSimulation();
       if(state.time >= MAX_TIMELINE){ state.playing=false; els.playBtn.textContent='▶'; clearInterval(state.timer); }
     },PLAY_TICK_MS);
@@ -335,14 +438,14 @@ function jumpStage(direction){
   const points = [...new Set(state.meal.flatMap(f => Object.values(f.times).filter(point => point <= MAX_TIMELINE).map(Math.round)))].sort((a,b)=>a-b);
   const target = direction > 0 ? points.find(p => p > state.time + 1) : [...points].reverse().find(p => p < state.time - 1);
   state.time = target ?? (direction > 0 ? MAX_TIMELINE : 0);
-  els.timeline.value = state.time;
+  els.timeline.value = minutesToTimelinePosition(state.time);
   renderSimulation();
 }
 
 function resetAll(){
   state.selected.clear(); state.meal=[]; state.focusId=null; state.time=0; state.playing=false; state.presetId=null; state.quizQuestions=[]; state.quizIndex=0; state.quizAnswered=false; state.quizCorrect=0;
   clearInterval(state.timer);
-  els.selectedCount.textContent='0 種'; els.timeline.value=0; els.playBtn.textContent='▶'; els.mealLegend.innerHTML='';
+  els.selectedCount.textContent='0 種'; els.timeline.value=minutesToTimelinePosition(0); els.playBtn.textContent='▶'; els.mealLegend.innerHTML='';
   syncFoodSelectionUI();
   renderLegend();
   renderSimulation();
@@ -351,10 +454,13 @@ function resetAll(){
 }
 
 els.loadMealBtn.addEventListener('click', buildMeal);
-els.timeline.addEventListener('input', e => { state.time=Number(e.target.value); renderSimulation(); });
+els.timeline.addEventListener('input', e => { state.time=timelinePositionToMinutes(e.target.value); renderSimulation(); });
 els.playBtn.addEventListener('click', togglePlay);
 els.prevBtn.addEventListener('click',()=>jumpStage(-1));
 els.nextBtn.addEventListener('click',()=>jumpStage(1));
+els.speedSelect.addEventListener('change', renderSpeedNotice);
+els.flowModeFixedBtn.addEventListener('click',()=>setFlowMode('fixed'));
+els.flowModeSegmentedBtn.addEventListener('click',()=>setFlowMode('segmented'));
 els.resetBtn.addEventListener('click',resetAll);
 els.startTourBtn.addEventListener('click',()=>els.tourDialog.showModal());
 els.closeTourBtn.addEventListener('click',()=>els.tourDialog.close());
@@ -397,6 +503,7 @@ els.challengeQuestions.addEventListener('click', event => {
 
 renderFoodCards();
 renderPresets();
+setFlowMode(state.flowMode);
 renderLegend();
 renderSimulation();
 renderObservation();
