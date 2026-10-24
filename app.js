@@ -50,10 +50,10 @@ const FOOD_KNOWLEDGE = {
   hard: ['粗硬或顆粒大的食物需要更多咀嚼與胃部研磨。', '纖維、脂肪與食物結構都可能讓整段消化旅程變長。']
 };
 
-const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null, flowMode:'fixed', history:[], autoFollow:true, manualScrollUntil:0, autoScrollUntil:0, autoScrollFrame:null, autoScrollTarget:null, quizQuestions:[], quizIndex:0, quizAnswered:false, quizCorrect:0, quizCompleted:false, puzzle:null, puzzleRevealed:false, joke:null, jokeReasonRevealed:false };
+const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null, flowMode:'fixed', history:[], autoFollow:true, manualScrollUntil:0, autoScrollUntil:0, autoScrollFrame:null, autoScrollTarget:null, earlyEnded:false, earlyEndTime:null, quizQuestions:[], quizIndex:0, quizAnswered:false, quizCorrect:0, quizCompleted:false, puzzle:null, puzzleRevealed:false, joke:null, jokeReasonRevealed:false };
 
 const els = Object.fromEntries([
-  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','flowModeFixedBtn','flowModeSegmentedBtn','speedNotice','bodyStage','foodParticles','autoFollowBtn','infoCard','mealLegend','legendCount','mealHistory','historyCount','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','observationTitle','observationText','observationFacts','puzzleSection','puzzlePrompt','puzzleHint','puzzleAnswer','puzzleRevealBtn','jokeSection','jokeText','jokeReason','jokeReasonBtn','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
+  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','flowModeFixedBtn','flowModeSegmentedBtn','speedNotice','bodyStage','foodParticles','autoFollowBtn','infoCard','mealLegend','legendCount','mealHistory','historyCount','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','earlyEndNotice','observationTitle','observationText','observationFacts','puzzleSection','puzzlePrompt','puzzleHint','puzzleAnswer','puzzleRevealBtn','jokeSection','jokeText','jokeReason','jokeReasonBtn','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
 ].map(id => [id, document.getElementById(id)]));
 
 function syncDesktopLayout(){
@@ -61,6 +61,73 @@ function syncDesktopLayout(){
   const availableWidth = window.screen?.availWidth || viewportWidth;
   const wideDesktop = viewportWidth >= 900 && (viewportWidth >= 1150 || viewportWidth >= availableWidth * .8);
   document.documentElement.classList.toggle('desktop-wide', wideDesktop);
+}
+
+function allFoodsHaveExited(){
+  return state.meal.length > 0 && state.meal.every(food => getFoodStage(food, state.time).organ.key === 'out');
+}
+
+function finishEarlyIfComplete(){
+  if(state.earlyEnded || state.time >= MAX_TIMELINE || !allFoodsHaveExited()) return;
+  state.earlyEnded = true;
+  state.earlyEndTime = state.time;
+  state.playing = false;
+  clearInterval(state.timer);
+  els.playBtn.textContent = '▶';
+}
+
+function renderEarlyEndNotice(){
+  if(!els.earlyEndNotice) return;
+  els.earlyEndNotice.hidden = !state.earlyEnded;
+  els.playBtn.disabled = state.earlyEnded;
+  els.earlyEndNotice.textContent = state.earlyEnded
+    ? `✓ 模擬已提早結束：所有食物都已消化並排出體外，模擬時間為進食後 ${formatTime(state.earlyEndTime)}。`
+    : '';
+}
+
+function getFoodCombinationName(foodIds){
+  const orderedIds = [...new Set(foodIds)]
+    .filter(id => FOODS.some(food => food.id === id))
+    .sort((a,b) => FOODS.findIndex(food => food.id === a) - FOODS.findIndex(food => food.id === b));
+  if(!orderedIds.length) return '空白餐點';
+  const singleFoodNames = {
+    water:'清涼水', alcohol:'醇香酒', drink:'沁甜飲', rice:'金穗飯', steak:'炙香牛',
+    vegetable:'鮮蔬盤', pearl:'珍珠圓', bubbleTea:'茶香珍奶', fried:'金脆薯條', easy:'綿滑粥品', hard:'厚實粗食'
+  };
+  if(orderedIds.length === 1) return singleFoodNames[orderedIds[0]] || '食物餐';
+
+  const foods = orderedIds.map(id => FOODS.find(food => food.id === id)).filter(Boolean);
+  const liquidIds = new Set(['water','alcohol','drink']);
+  let prefix = '豐味';
+  if(foods.every(food => liquidIds.has(food.id))) prefix = '清爽';
+  else if(foods.some(food => food.id === 'fried')) prefix = '金脆';
+  else if(foods.some(food => food.id === 'vegetable')) prefix = '鮮蔬';
+  else if(foods.some(food => ['rice','pearl','bubbleTea'].includes(food.id))) prefix = '穀香';
+  else if(foods.some(food => ['steak','hard'].includes(food.id))) prefix = '炙香';
+
+  // 每種食物各佔一個 bit，因此 1～2047 的編號能為所有組合產生唯一名稱。
+  const combinationNumber = orderedIds.reduce((mask, id) => {
+    const foodIndex = FOODS.findIndex(food => food.id === id);
+    return mask | (1 << foodIndex);
+  }, 0);
+  // 33 個風味與口感字元可用三位數編碼表示 33^3 種組合；前綴依食物類型產生菜單風格名稱。
+  const nameAlphabet = '香脆鮮嫩甜鹹濃醇清爽金玉酥炙燒蜜糯滑彈麻辣酸甘辛芳潤柔厚馥醬飽美妙';
+  let encoded = '';
+  let value = combinationNumber;
+  for(let index = 0; index < 3; index += 1){
+    encoded = nameAlphabet[value % nameAlphabet.length] + encoded;
+    value = Math.floor(value / nameAlphabet.length);
+  }
+  return `${prefix}${encoded}`;
+}
+
+function findMatchingPresetId(foodIds = state.selected){
+  const selectedIds = new Set(foodIds);
+  return PRESET_MEALS.find(preset => preset.foods.length === selectedIds.size && preset.foods.every(id => selectedIds.has(id)))?.id || null;
+}
+
+function getSelectLabel(select, value){
+  return [...(select?.options || [])].find(option => option.value === value)?.textContent || value;
 }
 
 function updateBodyStageScroll(){
@@ -93,7 +160,7 @@ function stepBodyStageScroll(){
 }
 
 function renderFoodCards(){
-  els.foodGrid.innerHTML = FOODS.map(food => `
+  const cards = FOODS.map(food => `
     <label class="food-card" data-id="${food.id}">
       <input type="checkbox" value="${food.id}" />
       <span class="food-check" aria-hidden="true"></span>
@@ -101,12 +168,20 @@ function renderFoodCards(){
       <span><strong>${food.name}</strong><small>${food.category}</small></span>
     </label>
   `).join('');
+  const selectAllCard = `
+    <button type="button" class="food-card select-all-foods-btn" data-action="select-all-foods" aria-pressed="false">
+      <span class="food-check" aria-hidden="true"></span>
+      <span class="food-icon" aria-hidden="true">🍽️</span>
+      <span><strong>一鍵全選食物</strong><small>選取全部食物</small></span>
+    </button>
+  `;
+  els.foodGrid.innerHTML = cards + selectAllCard;
   els.foodGrid.querySelectorAll('.food-card input').forEach(input => {
     input.addEventListener('change', () => {
       const card = input.closest('.food-card');
       const id = card.dataset.id;
       input.checked ? state.selected.add(id) : state.selected.delete(id);
-      state.presetId = null;
+      state.presetId = findMatchingPresetId(state.selected);
       state.quizCompleted = false;
       state.puzzle = null;
       state.puzzleRevealed = false;
@@ -117,16 +192,40 @@ function renderFoodCards(){
       renderJokeSection();
     });
   });
+  els.foodGrid.querySelector('[data-action="select-all-foods"]')?.addEventListener('click', () => {
+    const allSelected = state.selected.size === FOODS.length && FOODS.every(food => state.selected.has(food.id));
+    state.selected = allSelected ? new Set() : new Set(FOODS.map(food => food.id));
+    state.presetId = findMatchingPresetId(state.selected);
+    state.quizCompleted = false;
+    state.puzzle = null;
+    state.puzzleRevealed = false;
+    state.joke = null;
+    state.jokeReasonRevealed = false;
+    syncFoodSelectionUI();
+    renderPuzzleSection();
+    renderJokeSection();
+  });
 }
 
 function syncFoodSelectionUI(){
   els.foodGrid.querySelectorAll('.food-card').forEach(card => {
     const input = card.querySelector('input');
+    if(!input) return;
     const selected = state.selected.has(card.dataset.id);
     input.checked = selected;
     card.classList.toggle('selected', selected);
   });
   els.selectedCount.textContent = `${state.selected.size} 種`;
+  const selectAllButton = els.foodGrid.querySelector('[data-action="select-all-foods"]');
+  if(selectAllButton){
+    const allSelected = state.selected.size === FOODS.length && FOODS.every(food => state.selected.has(food.id));
+    selectAllButton.classList.toggle('selected', allSelected);
+    const buttonText = allSelected ? '取消全選食物' : '一鍵全選食物';
+    selectAllButton.setAttribute('aria-label', allSelected ? '取消選取所有食物' : '一鍵選擇所有食物');
+    selectAllButton.setAttribute('aria-pressed', String(allSelected));
+    selectAllButton.querySelector('strong').textContent = buttonText;
+    selectAllButton.querySelector('small').textContent = allSelected ? '清除全部選取' : '選取全部食物';
+  }
   els.presetGrid.querySelectorAll('.preset-card').forEach(button => {
     button.classList.toggle('active', button.dataset.presetId === state.presetId);
   });
@@ -183,6 +282,8 @@ function buildMeal(){
   state.focusId = state.meal[0].id;
   state.time = 0;
   state.quizCompleted = false;
+  state.earlyEnded = false;
+  state.earlyEndTime = null;
   recordMealHistory();
   refreshBonusContent();
   els.timeline.value = minutesToTimelinePosition(0);
@@ -198,14 +299,18 @@ function getMealHistoryLabel(){
   const allSelected = state.selected.size === FOODS.length && FOODS.every(food => state.selected.has(food.id));
   if(allSelected) return '全部食物';
   const preset = PRESET_MEALS.find(item => item.id === state.presetId);
-  return preset?.name || '自選餐點';
+  if(preset) return preset.name;
+  const orderedIds = [...state.selected].sort((a,b) => FOODS.findIndex(food => food.id === a) - FOODS.findIndex(food => food.id === b));
+  return getFoodCombinationName(orderedIds);
 }
 
 function recordMealHistory(){
-  const foodIds = [...state.selected];
+  const foodIds = [...state.selected].sort((a,b) => FOODS.findIndex(food => food.id === a) - FOODS.findIndex(food => food.id === b));
   if(!foodIds.length) return;
-  const signature = [...foodIds].sort().join('|');
-  const record = { signature, foodIds, label:getMealHistoryLabel(), presetId:state.presetId || null };
+  const portion = els.portionSelect.value;
+  const chew = els.chewSelect.value;
+  const signature = `${foodIds.join('|')}::${portion}::${chew}`;
+  const record = { signature, foodIds, label:getMealHistoryLabel(), presetId:state.presetId || null, portion, chew };
   const existingIndex = state.history.findIndex(item => item.signature === signature);
   if(existingIndex >= 0) state.history.splice(existingIndex, 1);
   state.history.unshift(record);
@@ -226,7 +331,9 @@ function renderHistory(){
     const icons = foods.slice(0, visibleIconCount).map(food => `<span class="history-icon" aria-hidden="true">${food.icon}</span>`).join('');
     const iconMarkup = hiddenCount ? `<span class="history-ellipsis" aria-hidden="true">…</span>${icons}` : icons;
     const names = foods.map(food => food.name).join('、');
-    return `<div class="history-entry"><button type="button" class="history-item" data-history-index="${index}" aria-label="套用歷史餐點：${record.label}，包含${names}"><span class="history-icons">${iconMarkup}</span><span class="history-item-label">${record.label}</span></button><span class="history-detail" role="tooltip">${names || '沒有食物資料'}<br><small>點擊即可套用，之後仍可手動調整</small></span></div>`;
+    const settings = `份量：${getSelectLabel(els.portionSelect, record.portion)}；咀嚼：${getSelectLabel(els.chewSelect, record.chew)}`;
+    const label = record.label || getFoodCombinationName(record.foodIds);
+    return `<div class="history-entry"><button type="button" class="history-item" data-history-index="${index}" aria-label="套用歷史餐點：${label}，包含${names}，${settings}"><span class="history-icons">${iconMarkup}</span><span class="history-item-label">${label}</span></button><span class="history-detail" role="tooltip">${names || '沒有食物資料'}<br>${settings}<br><small>點擊即可套用，之後仍可手動調整</small></span></div>`;
   }).join('');
 }
 
@@ -239,7 +346,9 @@ function applyHistoryMeal(index){
     return;
   }
   state.selected = new Set(validIds);
-  state.presetId = record.presetId || null;
+  state.presetId = record.presetId || findMatchingPresetId(state.selected);
+  if([...els.portionSelect.options].some(option => option.value === record.portion)) els.portionSelect.value = record.portion;
+  if([...els.chewSelect.options].some(option => option.value === record.chew)) els.chewSelect.value = record.chew;
   syncFoodSelectionUI();
   buildMeal();
 }
@@ -319,6 +428,7 @@ function updateParticleButton(button, food, data){
 }
 
 function renderSimulation(){
+  finishEarlyIfComplete();
   els.timeLabel.textContent = formatTime(state.time);
   els.timeline.setAttribute('aria-valuetext', formatTime(state.time));
   const existing = [...els.foodParticles.querySelectorAll('.food-particle')];
@@ -334,6 +444,7 @@ function renderSimulation(){
   });
   updateLegendWarnings();
   renderTimelineWarning();
+  renderEarlyEndNotice();
   renderFocus();
   renderSpeedNotice();
   updateBodyStageScroll();
@@ -637,6 +748,12 @@ function setFlowMode(mode){
 }
 
 function togglePlay(){
+  if(state.earlyEnded){
+    state.playing = false;
+    els.playBtn.textContent = '▶';
+    renderEarlyEndNotice();
+    return;
+  }
   state.playing = !state.playing;
   els.playBtn.textContent = state.playing ? '⏸' : '▶';
   if(state.playing){
@@ -645,22 +762,23 @@ function togglePlay(){
       state.time = Math.min(MAX_TIMELINE, state.time + getMinutesPerSecond() * PLAY_TICK_MS / 1000);
       els.timeline.value = minutesToTimelinePosition(state.time);
       renderSimulation();
-      if(state.time >= MAX_TIMELINE){ state.playing=false; els.playBtn.textContent='▶'; clearInterval(state.timer); }
+      if(state.earlyEnded || state.time >= MAX_TIMELINE){ state.playing=false; els.playBtn.textContent='▶'; clearInterval(state.timer); }
     },PLAY_TICK_MS);
   } else clearInterval(state.timer);
 }
 
 function jumpStage(direction){
   if(!state.meal.length) return;
-  const points = [...new Set(state.meal.flatMap(f => Object.values(f.times).filter(point => point <= MAX_TIMELINE).map(Math.round)))].sort((a,b)=>a-b);
+  const limit = state.earlyEnded ? state.earlyEndTime : MAX_TIMELINE;
+  const points = [...new Set(state.meal.flatMap(f => Object.values(f.times).filter(point => point <= limit).map(Math.round)))].sort((a,b)=>a-b);
   const target = direction > 0 ? points.find(p => p > state.time + 1) : [...points].reverse().find(p => p < state.time - 1);
-  state.time = target ?? (direction > 0 ? MAX_TIMELINE : 0);
+  state.time = target ?? (direction > 0 ? limit : 0);
   els.timeline.value = minutesToTimelinePosition(state.time);
   renderSimulation();
 }
 
 function resetAll(){
-  state.selected.clear(); state.meal=[]; state.focusId=null; state.time=0; state.playing=false; state.presetId=null; state.quizQuestions=[]; state.quizIndex=0; state.quizAnswered=false; state.quizCorrect=0; state.quizCompleted=false; state.puzzle=null; state.puzzleRevealed=false; state.joke=null; state.jokeReasonRevealed=false;
+  state.selected.clear(); state.meal=[]; state.focusId=null; state.time=0; state.playing=false; state.presetId=null; state.earlyEnded=false; state.earlyEndTime=null; state.quizQuestions=[]; state.quizIndex=0; state.quizAnswered=false; state.quizCorrect=0; state.quizCompleted=false; state.puzzle=null; state.puzzleRevealed=false; state.joke=null; state.jokeReasonRevealed=false;
   clearInterval(state.timer);
   els.selectedCount.textContent='0 種'; els.timeline.value=minutesToTimelinePosition(0); els.playBtn.textContent='▶'; els.mealLegend.innerHTML='';
   if(els.bodyStage){ els.bodyStage.scrollTop = 0; state.manualScrollUntil = 0; state.autoScrollUntil = 0; state.autoScrollTarget = null; if(state.autoScrollFrame){ cancelAnimationFrame(state.autoScrollFrame); state.autoScrollFrame = null; } }
@@ -673,7 +791,7 @@ function resetAll(){
 }
 
 els.loadMealBtn.addEventListener('click', buildMeal);
-els.timeline.addEventListener('input', e => { state.time=timelinePositionToMinutes(e.target.value); state.manualScrollUntil = 0; renderSimulation(); });
+els.timeline.addEventListener('input', e => { const requested = timelinePositionToMinutes(e.target.value); state.time = state.earlyEnded ? Math.min(requested, state.earlyEndTime) : requested; state.manualScrollUntil = 0; els.timeline.value = minutesToTimelinePosition(state.time); renderSimulation(); });
 els.playBtn.addEventListener('click', togglePlay);
 els.prevBtn.addEventListener('click',()=>jumpStage(-1));
 els.nextBtn.addEventListener('click',()=>jumpStage(1));

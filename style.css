@@ -123,6 +123,8 @@ button:hover { transform: translateY(-1px); }
 .food-icon { font-size: 1.65rem; }
 .food-card strong { display:block; font-size: .95rem; }
 .food-card small { color: var(--muted); font-size: .75rem; }
+.select-all-foods-btn { width:100%; text-align:left; color:var(--text); }
+.select-all-foods-btn:hover, .select-all-foods-btn:focus-visible { border-color:var(--primary); background:#f7fcfa; outline:3px solid rgba(36,135,109,.15); }
 .preset-section { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .preset-heading h3 { margin: 2px 0 8px; font-size: 1rem; }
 .preset-grid { display: grid; gap: 8px; }
@@ -236,6 +238,7 @@ select {
 .timeline-card { margin-top: 12px; padding: 12px; background:#f8fbf9; border:1px solid var(--line); border-radius:18px; }
 .playback-controls { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
 .icon-btn { width:36px; height:36px; padding:0; background:white; color:var(--text); border:1px solid var(--line); }
+.icon-btn:disabled { opacity:.55; cursor:not-allowed; transform:none; }
 .speed-control-group { margin-left:auto; display:flex; align-items:flex-end; gap:8px; }
 .speed-control-group label { display:flex; align-items:center; gap:8px; }
 .speed-control-group select { width:94px; }
@@ -252,6 +255,8 @@ select {
 .timeline-axis-segment span::before { content:""; display:block; width:1px; height:7px; margin:0 auto 3px; background:#aebdb4; }
 .speed-notice { margin:8px 0 0; padding:8px 10px; border-radius:10px; background:#eaf3ee; color:#2e5c4c; font-size:.76rem; line-height:1.45; font-weight:700; }
 .timeline-warning { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; background:#fff4d6; color:#765000; font-size:.78rem; font-weight:700; line-height:1.4; }
+.early-end-notice { margin: 8px 0 0; padding: 9px 10px; border-radius: 10px; background:#e4f6eb; color:#176344; font-size:.78rem; font-weight:800; line-height:1.45; }
+.early-end-notice[hidden] { display:none !important; }
 .meal-legend-heading { display:flex; justify-content:space-between; margin-top:10px; color:var(--muted); font-size:.8rem; font-weight:800; }
 .meal-legend { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px; margin-top:8px; }
 .legend-item { width:100%; display:flex; align-items:center; justify-content:flex-start; gap:7px; border:1px solid var(--line); background:white; border-radius:12px; padding:7px 10px; font-size:.78rem; font-weight:700; }
