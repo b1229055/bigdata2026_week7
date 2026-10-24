@@ -188,8 +188,12 @@ select {
   pointer-events:auto;
 }
 .food-particle:hover, .food-particle.focused { transform: translate(-50%, -50%) scale(1.08); z-index:10; }
+.food-particle.focused { outline: 4px solid rgba(36,135,109,.72); outline-offset: 3px; box-shadow: 0 0 0 7px rgba(36,135,109,.16), 0 10px 22px rgba(38,53,47,.28); }
 .food-particle.incomplete { border-color: #d73445; box-shadow: 0 0 0 4px rgba(215,52,69,.35), 0 0 18px rgba(215,52,69,.7), 0 10px 22px rgba(38,53,47,.28); }
-.food-warning { position:absolute; right:-8px; top:-11px; color:#fff; background:#d73445; border:2px solid #fff; border-radius:50%; width:20px; height:20px; display:grid; place-items:center; font-size:.72rem; line-height:1; font-weight:900; }
+.food-warning, .legend-warning { position:absolute; color:#fff; background:#d73445; clip-path:polygon(50% 0, 100% 100%, 0 100%); display:grid; place-items:center; font-size:.72rem; line-height:1; font-weight:900; }
+.food-warning[hidden], .legend-warning[hidden] { display:none !important; }
+.food-warning { right:-9px; top:-13px; width:23px; height:22px; padding-top:5px; }
+.food-warning::before, .legend-warning::before { content:"!"; }
 .info-card {
   background: #20372f;
   color: white;
@@ -238,13 +242,24 @@ select {
 .legend-item.active { outline:3px solid rgba(36,135,109,.16); }
 .legend-item.incomplete { border-color:#d73445; box-shadow:0 0 0 3px rgba(215,52,69,.24), 0 0 14px rgba(215,52,69,.35); color:#9f2534; }
 .legend-item.incomplete .legend-dot { box-shadow:0 0 0 3px rgba(215,52,69,.25), 0 0 8px rgba(215,52,69,.7); }
-.legend-warning { margin-left:auto; color:#fff; background:#d73445; border-radius:50%; width:18px; height:18px; display:grid; place-items:center; font-size:.68rem; line-height:1; }
+.legend-warning { position:relative; inset:auto; margin-left:auto; width:20px; height:19px; padding-top:4px; font-size:.68rem; flex:0 0 auto; }
 .legend-index { color:var(--muted); font-size:.72rem; }
 .legend-empty { margin:0; color:var(--muted); font-size:.8rem; }
 .learning-section { max-width:1480px; margin:0 auto 20px; padding:0 28px; display:grid; grid-template-columns:1fr 1fr; gap:16px; }
 .learning-card { background:white; border-radius:20px; padding:16px; box-shadow:var(--shadow); }
 .learning-card h2 { margin:6px 0 10px; }
 .learning-card p { color:var(--muted); line-height:1.45; }
+.observation-facts { margin:12px 0 0; padding:10px 12px 10px 28px; border-radius:14px; background:#f4faf6; color:#426257; font-size:.82rem; line-height:1.55; }
+.observation-facts li + li { margin-top:5px; }
+.puzzle-section { margin-top:12px; padding:12px; border-radius:14px; border:1px dashed #e4bf7a; line-height:1.5; }
+.puzzle-section strong { display:block; color:#765000; font-size:.86rem; }
+.puzzle-section p { margin:5px 0 0; font-size:.82rem; }
+.puzzle-section.locked { background:#fbfaf5; }
+.puzzle-section.unlocked { background:#fff4d6; border-style:solid; }
+.puzzle-hint { color:#765000 !important; }
+.puzzle-answer { padding:8px 10px; border-radius:10px; background:#fffbe9; color:#5f480d !important; font-weight:800; }
+.puzzle-section button { margin-top:9px; padding:7px 10px; font-size:.78rem; }
+.puzzle-section button:disabled { cursor:default; opacity:.7; }
 .challenge-summary { margin: 0 0 10px; font-size: .86rem; }
 .challenge-questions { display:grid; gap:12px; max-height:420px; overflow-y:auto; padding-right:4px; }
 .challenge-question { padding:12px; border:1px solid var(--line); border-radius:14px; background:#fbfefc; }

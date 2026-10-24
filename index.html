@@ -129,7 +129,7 @@
             </label>
             <div class="flow-mode-controls" role="group" aria-label="時間流速模式">
               <button id="flowModeFixedBtn" type="button" class="flow-mode-btn active" aria-pressed="true">全程固定</button>
-              <button id="flowModeSegmentedBtn" type="button" class="flow-mode-btn" aria-pressed="false">前 1 小時較慢</button>
+              <button id="flowModeSegmentedBtn" type="button" class="flow-mode-btn" aria-pressed="false">分段流速</button>
             </div>
           </div>
         </div>
@@ -162,6 +162,14 @@
       <p class="step-label">觀察重點</p>
       <h2 id="observationTitle">同一餐中的食物，不一定一起前進</h2>
       <p id="observationText">先選擇食物並開始模擬，再觀察不同食物在消化道中的速度差異。</p>
+      <ul id="observationFacts" class="observation-facts" aria-label="消化系統知識"></ul>
+      <div id="puzzleSection" class="puzzle-section locked" role="status">
+        <strong>食物解謎專區</strong>
+        <p id="puzzlePrompt">🔒 先載入餐點並完成全部挑戰題，解鎖食物解謎。</p>
+        <p id="puzzleHint" class="puzzle-hint" hidden></p>
+        <p id="puzzleAnswer" class="puzzle-answer" hidden></p>
+        <button id="puzzleRevealBtn" type="button" class="secondary" hidden>顯示解答</button>
+      </div>
     </div>
     <div class="learning-card challenge-card">
       <p class="step-label">挑戰題</p>
@@ -183,6 +191,7 @@
   </dialog>
 
   <script src="question-bank.js"></script>
+  <script src="joke-bank.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

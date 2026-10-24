@@ -35,10 +35,24 @@ const PLAY_TICK_MS = 100;
 const FIXED_MINUTES_PER_REAL_SECOND = 2;
 const SEGMENTED_EARLY_MINUTES_PER_REAL_SECOND = 1;
 const SEGMENTED_LATE_MINUTES_PER_REAL_SECOND = 5;
-const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null, flowMode:'fixed', quizQuestions:[], quizIndex:0, quizAnswered:false, quizCorrect:0 };
+const FOOD_KNOWLEDGE = {
+  water: ['水不需要先被消化酵素拆解，主要在小腸被吸收。', '身體會依需要調節水分，並透過腎臟處理多餘水分。'],
+  alcohol: ['酒精可在胃與小腸吸收，之後主要由肝臟代謝。', '酒精飲料的液體移動快，不代表酒精會讓身體補水。'],
+  drink: ['飲料中的糖分通常在小腸被吸收，液體本身則較快離開胃。', '含糖飲料的能量密度可能影響一餐的總熱量。'],
+  rice: ['米飯的澱粉會先被唾液與胰液相關酵素分解，再在小腸吸收。', '咀嚼會把米飯弄碎，也能讓消化液更容易接觸食物。'],
+  steak: ['牛排的蛋白質在胃與小腸中逐步分解成胺基酸。', '脂肪與蛋白質較多時，胃排空通常會比液體慢。'],
+  vegetable: ['蔬菜提供纖維；部分纖維不會在小腸被完全分解，會進入大腸。', '大腸中的腸道菌會利用部分纖維，並產生短鏈脂肪酸。'],
+  pearl: ['珍珠主要是澱粉固體，咀嚼程度會影響食物顆粒大小。', '較大的食物顆粒通常需要更多胃部攪拌，才會形成適合通過的食糜。'],
+  bubbleTea: ['珍珠奶茶同時包含液體、糖與澱粉固體，不同成分不會完全同步前進。', '液體較快通過胃，珍珠等固體則需要更多攪拌與分解時間。'],
+  fried: ['油炸食物的脂肪含量較高，常會讓胃排空速度變慢。', '高溫油炸會改變食物的質地與含水量，份量也會影響消化負擔。'],
+  easy: ['軟質、顆粒小的食物通常較容易與消化液混合。', '食物較容易形成食糜，不代表營養會在同一個器官全部吸收。'],
+  hard: ['粗硬或顆粒大的食物需要更多咀嚼與胃部研磨。', '纖維、脂肪與食物結構都可能讓整段消化旅程變長。']
+};
+
+const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null, flowMode:'fixed', quizQuestions:[], quizIndex:0, quizAnswered:false, quizCorrect:0, quizCompleted:false, puzzle:null, puzzleRevealed:false };
 
 const els = Object.fromEntries([
-  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','flowModeFixedBtn','flowModeSegmentedBtn','speedNotice','foodParticles','mealLegend','legendCount','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','observationTitle','observationText','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
+  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','flowModeFixedBtn','flowModeSegmentedBtn','speedNotice','foodParticles','mealLegend','legendCount','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','observationTitle','observationText','observationFacts','puzzleSection','puzzlePrompt','puzzleHint','puzzleAnswer','puzzleRevealBtn','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
 ].map(id => [id, document.getElementById(id)]));
 
 function renderFoodCards(){
@@ -56,6 +70,9 @@ function renderFoodCards(){
       const id = card.dataset.id;
       input.checked ? state.selected.add(id) : state.selected.delete(id);
       state.presetId = null;
+      state.quizCompleted = false;
+      state.puzzle = null;
+      state.puzzleRevealed = false;
       syncFoodSelectionUI();
     });
   });
@@ -124,6 +141,9 @@ function buildMeal(){
   });
   state.focusId = state.meal[0].id;
   state.time = 0;
+  state.quizCompleted = false;
+  state.puzzle = pickPuzzle(state.meal.map(food => food.id));
+  state.puzzleRevealed = false;
   els.timeline.value = minutesToTimelinePosition(0);
   renderLegend();
   renderSimulation();
@@ -179,11 +199,11 @@ function minutesToTimelinePosition(minutes){
 }
 
 function isIncompleteAtEnd(food){
-  return state.time >= MAX_TIMELINE && !food.completedWithinTimeline;
+  return state.meal.length > 0 && state.time >= MAX_TIMELINE && food.completedWithinTimeline === false;
 }
 
 function particleMarkup(food){
-  return `<button class="food-particle" data-id="${food.id}" aria-label="${food.name}" title="${food.name}"><span class="food-icon-mark">${food.icon}</span><span class="food-warning" aria-hidden="true" hidden>⚠</span></button>`;
+  return `<button class="food-particle" data-id="${food.id}" aria-label="${food.name}" title="${food.name}"><span class="food-icon-mark">${food.icon}</span><span class="food-warning" aria-hidden="true" hidden></span></button>`;
 }
 
 function updateParticleButton(button, food, data){
@@ -192,7 +212,7 @@ function updateParticleButton(button, food, data){
   const scale = Math.max(.65, 1 - data.digest * .28);
   const label = incompleteAtEnd ? `${food.name}，72 小時仍未完成消化` : food.name;
   button.classList.toggle('focused', food.id === state.focusId);
-  button.classList.toggle('incomplete', incompleteAtEnd);
+  button.classList.toggle('incomplete', incompleteAtEnd && food.id !== state.focusId);
   button.style.left = `${data.pos[0]}%`;
   button.style.top = `${data.pos[1]}%`;
   button.style.background = food.color;
@@ -277,7 +297,7 @@ function getNextText(food, key){
 
 function renderLegend(){
   els.legendCount.textContent = state.meal.length ? `${state.meal.length} 種` : '尚未載入';
-  els.mealLegend.innerHTML = state.meal.length ? state.meal.map((food, index) => `<button type="button" class="legend-item ${food.id===state.focusId?'active':''}" data-id="${food.id}" aria-label="${food.name}"><span class="legend-index">${index + 1}</span><span class="legend-dot" style="background:${food.color}"></span><span>${food.icon} ${food.name}</span><span class="legend-warning" aria-hidden="true" hidden>⚠</span></button>`).join('') : '<p class="legend-empty">選擇餐點後，這裡會列出每一種食物。</p>';
+  els.mealLegend.innerHTML = state.meal.length ? state.meal.map((food, index) => `<button type="button" class="legend-item ${food.id===state.focusId?'active':''}" data-id="${food.id}" aria-label="${food.name}"><span class="legend-index">${index + 1}</span><span class="legend-dot" style="background:${food.color}"></span><span>${food.icon} ${food.name}</span><span class="legend-warning" aria-hidden="true" hidden></span></button>`).join('') : '<p class="legend-empty">選擇餐點後，這裡會列出每一種食物。</p>';
   els.mealLegend.querySelectorAll('.legend-item').forEach(btn => btn.addEventListener('click',()=>{ state.focusId=btn.dataset.id; renderLegend(); renderSimulation(); }));
   updateLegendWarnings();
 }
@@ -303,6 +323,8 @@ function renderObservation(){
   if(!foods.length){
     els.observationTitle.textContent = '同一餐中的食物，不一定一起前進';
     els.observationText.textContent = '先選擇食物並開始模擬，再觀察不同食物在消化道中的速度差異。';
+    els.observationFacts.innerHTML = '<li>消化道會依序經過口腔、食道、胃、小腸、大腸與直腸。</li><li>這個網站用簡化模型協助比較食物差異，不是醫療時間表。</li>';
+    renderPuzzleSection();
     return;
   }
   const names = foods.map(food => food.name).join('、');
@@ -325,6 +347,46 @@ function renderObservation(){
     els.observationTitle.textContent = '份量與咀嚼會改變模擬速度';
     els.observationText.textContent = `目前選擇${names}。可以切換份量與咀嚼程度，再重新載入餐點，比較食物在各器官的停留時間。`;
   }
+  const facts = [...new Set(foods.flatMap(food => FOOD_KNOWLEDGE[food.id] || []))];
+  els.observationFacts.innerHTML = facts.slice(0, 5).map(fact => `<li>${fact}</li>`).join('');
+  renderPuzzleSection();
+}
+
+function pickPuzzle(selectedIds){
+  const bank = Array.isArray(window.PUZZLE_BANK) ? window.PUZZLE_BANK : [];
+  const selected = new Set(selectedIds);
+  const related = bank.filter(puzzle => puzzle.foods?.some(id => selected.has(id)));
+  return shuffle(related)[0] || null;
+}
+
+function renderPuzzleSection(){
+  if(!els.puzzleSection || !els.puzzlePrompt || !els.puzzleHint || !els.puzzleAnswer || !els.puzzleRevealBtn) return;
+  const hasMeal = state.meal.length > 0;
+  const unlocked = hasMeal && state.quizCompleted;
+  els.puzzleSection.classList.toggle('unlocked', unlocked);
+  els.puzzleSection.classList.toggle('locked', !unlocked);
+  if(!unlocked){
+    els.puzzlePrompt.textContent = hasMeal ? '🔒 完成全部挑戰題，才能解鎖本次餐點的食物解謎。' : '🔒 先載入餐點並完成全部挑戰題，解鎖食物解謎。';
+    els.puzzleHint.hidden = true;
+    els.puzzleAnswer.hidden = true;
+    els.puzzleRevealBtn.hidden = true;
+    return;
+  }
+  if(!state.puzzle){
+    els.puzzlePrompt.textContent = '目前沒有可用的解謎題目，請重新載入餐點。';
+    els.puzzleHint.hidden = true;
+    els.puzzleAnswer.hidden = true;
+    els.puzzleRevealBtn.hidden = true;
+    return;
+  }
+  els.puzzlePrompt.textContent = `謎面：${state.puzzle.question}`;
+  els.puzzleHint.textContent = `提示：${state.puzzle.hint}`;
+  els.puzzleHint.hidden = false;
+  els.puzzleAnswer.textContent = `解答：${state.puzzle.answer}`;
+  els.puzzleAnswer.hidden = !state.puzzleRevealed;
+  els.puzzleRevealBtn.hidden = false;
+  els.puzzleRevealBtn.textContent = state.puzzleRevealed ? '已顯示解答' : '顯示解答';
+  els.puzzleRevealBtn.disabled = state.puzzleRevealed;
 }
 
 function shuffle(items){
@@ -343,6 +405,9 @@ function renderQuiz(selectedIds){
   state.quizIndex = 0;
   state.quizAnswered = false;
   state.quizCorrect = 0;
+  state.quizCompleted = false;
+  state.puzzleRevealed = false;
+  renderPuzzleSection();
   if(!selected.size){
     els.challengeSummary.textContent = '請先選擇食物，再按「把食物放入消化道」開始挑戰題。';
     els.challengeQuestions.innerHTML = '<p class="challenge-empty">尚未載入餐點，請先選擇食物。</p>';
@@ -352,9 +417,24 @@ function renderQuiz(selectedIds){
   const related = bank.filter(question => question.foods.some(id => selected.has(id)));
   const fallback = bank.filter(question => !question.foods.some(id => selected.has(id)));
   const pool = [...new Map([...shuffle(related), ...shuffle(fallback)].map(question => [question.id, question])).values()];
-  state.quizQuestions = pool.slice(0, questionCount);
+  const answerPositions = shuffle([0, 1, 2]);
+  state.quizQuestions = pool.slice(0, questionCount).map((question, index) => arrangeQuestionOptions(question, index, answerPositions));
   els.challengeSummary.textContent = selected.size ? `依目前選取的 ${selected.size} 種食物，準備回答 ${state.quizQuestions.length} 題。` : '載入餐點後會依食物種類隨機產生 3～10 題。';
   renderCurrentQuiz();
+}
+
+function arrangeQuestionOptions(question, index, answerPositions){
+  if(!Array.isArray(question.options) || question.options.length < 3) return question;
+  const correctIndex = Number(question.answer);
+  if(!Number.isInteger(correctIndex) || !question.options[correctIndex]) return question;
+  const target = answerPositions[index % answerPositions.length];
+  const distractors = shuffle(question.options.filter((_, optionIndex) => optionIndex !== correctIndex));
+  const options = [];
+  let distractorIndex = 0;
+  for(let optionIndex = 0; optionIndex < question.options.length; optionIndex += 1){
+    options.push(optionIndex === target ? question.options[correctIndex] : distractors[distractorIndex++]);
+  }
+  return { ...question, options, answer:target };
 }
 
 function renderCurrentQuiz(){
@@ -364,8 +444,10 @@ function renderCurrentQuiz(){
   }
   if(state.quizIndex >= state.quizQuestions.length){
     const wrong = state.quizQuestions.length - state.quizCorrect;
+    state.quizCompleted = true;
     els.challengeSummary.textContent = '本次挑戰已完成。';
     els.challengeQuestions.innerHTML = `<div class="quiz-result" role="status"><strong>答題完成</strong><span>答對 ${state.quizCorrect} 題，答錯 ${wrong} 題。</span><button type="button" class="primary" data-action="restart-quiz">重新抽題</button></div>`;
+    renderObservation();
     return;
   }
   const question = state.quizQuestions[state.quizIndex];
@@ -404,7 +486,9 @@ function renderSpeedNotice(){
   const speedLabel = `${speed}×`;
   if(state.flowMode === 'segmented'){
     const phase = state.time < 60 ? '前 1 小時' : '後 71 小時';
-    els.speedNotice.textContent = `分段流速：${phase}目前為 ${speedLabel}，每實際 1 秒約前進 ${currentRate} 個模擬分鐘；跨過 60 分鐘後，1× 會改為每秒 5 分鐘。`;
+    const earlyRate = speed * SEGMENTED_EARLY_MINUTES_PER_REAL_SECOND;
+    const lateRate = speed * SEGMENTED_LATE_MINUTES_PER_REAL_SECOND;
+    els.speedNotice.textContent = `分段流速（${speedLabel}）：前 1 小時（0～60 分）每實際 1 秒約前進 ${earlyRate} 個模擬分鐘；後 71 小時（60 分～72 小時）每實際 1 秒約前進 ${lateRate} 個模擬分鐘。目前位於${phase}，約 ${currentRate} 分鐘／秒。`;
   } else {
     els.speedNotice.textContent = `全程固定：${speedLabel} 每實際 1 秒約前進 ${currentRate} 個模擬分鐘；前 1 小時與後 71 小時使用相同速度。`;
   }
@@ -443,7 +527,7 @@ function jumpStage(direction){
 }
 
 function resetAll(){
-  state.selected.clear(); state.meal=[]; state.focusId=null; state.time=0; state.playing=false; state.presetId=null; state.quizQuestions=[]; state.quizIndex=0; state.quizAnswered=false; state.quizCorrect=0;
+  state.selected.clear(); state.meal=[]; state.focusId=null; state.time=0; state.playing=false; state.presetId=null; state.quizQuestions=[]; state.quizIndex=0; state.quizAnswered=false; state.quizCorrect=0; state.quizCompleted=false; state.puzzle=null; state.puzzleRevealed=false;
   clearInterval(state.timer);
   els.selectedCount.textContent='0 種'; els.timeline.value=minutesToTimelinePosition(0); els.playBtn.textContent='▶'; els.mealLegend.innerHTML='';
   syncFoodSelectionUI();
@@ -462,6 +546,11 @@ els.speedSelect.addEventListener('change', renderSpeedNotice);
 els.flowModeFixedBtn.addEventListener('click',()=>setFlowMode('fixed'));
 els.flowModeSegmentedBtn.addEventListener('click',()=>setFlowMode('segmented'));
 els.resetBtn.addEventListener('click',resetAll);
+els.puzzleRevealBtn.addEventListener('click',()=>{
+  if(!state.quizCompleted || !state.puzzle) return;
+  state.puzzleRevealed = true;
+  renderPuzzleSection();
+});
 els.startTourBtn.addEventListener('click',()=>els.tourDialog.showModal());
 els.closeTourBtn.addEventListener('click',()=>els.tourDialog.close());
 els.challengeQuestions.addEventListener('click', event => {
