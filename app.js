@@ -30,6 +30,7 @@ const ORGANS = [
 
 const MAX_TIMELINE = 4320;
 const TIMELINE_SLIDER_MAX = 4320;
+const MAX_HISTORY = 5;
 const EARLY_AXIS_SHARE = .42;
 const PLAY_TICK_MS = 100;
 const FIXED_MINUTES_PER_REAL_SECOND = 2;
@@ -49,11 +50,47 @@ const FOOD_KNOWLEDGE = {
   hard: ['粗硬或顆粒大的食物需要更多咀嚼與胃部研磨。', '纖維、脂肪與食物結構都可能讓整段消化旅程變長。']
 };
 
-const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null, flowMode:'fixed', quizQuestions:[], quizIndex:0, quizAnswered:false, quizCorrect:0, quizCompleted:false, puzzle:null, puzzleRevealed:false, joke:null, jokeReasonRevealed:false };
+const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null, flowMode:'fixed', history:[], autoFollow:true, manualScrollUntil:0, autoScrollUntil:0, autoScrollFrame:null, autoScrollTarget:null, quizQuestions:[], quizIndex:0, quizAnswered:false, quizCorrect:0, quizCompleted:false, puzzle:null, puzzleRevealed:false, joke:null, jokeReasonRevealed:false };
 
 const els = Object.fromEntries([
-  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','flowModeFixedBtn','flowModeSegmentedBtn','speedNotice','foodParticles','mealLegend','legendCount','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','observationTitle','observationText','observationFacts','puzzleSection','puzzlePrompt','puzzleHint','puzzleAnswer','puzzleRevealBtn','jokeSection','jokeText','jokeReason','jokeReasonBtn','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
+  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','flowModeFixedBtn','flowModeSegmentedBtn','speedNotice','bodyStage','foodParticles','autoFollowBtn','infoCard','mealLegend','legendCount','mealHistory','historyCount','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','observationTitle','observationText','observationFacts','puzzleSection','puzzlePrompt','puzzleHint','puzzleAnswer','puzzleRevealBtn','jokeSection','jokeText','jokeReason','jokeReasonBtn','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
 ].map(id => [id, document.getElementById(id)]));
+
+function syncDesktopLayout(){
+  const viewportWidth = window.innerWidth || 0;
+  const availableWidth = window.screen?.availWidth || viewportWidth;
+  const wideDesktop = viewportWidth >= 900 && (viewportWidth >= 1150 || viewportWidth >= availableWidth * .8);
+  document.documentElement.classList.toggle('desktop-wide', wideDesktop);
+}
+
+function updateBodyStageScroll(){
+  if(!els.bodyStage || !state.autoFollow || !state.meal.length || Date.now() < state.manualScrollUntil) return;
+  const stages = state.meal.map(food => getFoodStage(food, state.time));
+  const lowerCount = stages.filter(data => data.pos[1] >= 50).length;
+  if(lowerCount <= state.meal.length / 2) return;
+  const averageY = stages.reduce((sum, data) => sum + data.pos[1], 0) / stages.length;
+  const canvas = els.bodyStage.querySelector('.body-stage-canvas');
+  if(!canvas) return;
+  const maxScroll = Math.max(0, canvas.scrollHeight - els.bodyStage.clientHeight);
+  const target = Math.max(0, Math.min(maxScroll, (averageY / 100) * canvas.scrollHeight - els.bodyStage.clientHeight * .48));
+  state.autoScrollTarget = target;
+  if(!state.autoScrollFrame) state.autoScrollFrame = requestAnimationFrame(stepBodyStageScroll);
+}
+
+function stepBodyStageScroll(){
+  state.autoScrollFrame = null;
+  if(!els.bodyStage || !state.autoFollow || Date.now() < state.manualScrollUntil || state.autoScrollTarget === null) return;
+  const target = state.autoScrollTarget;
+  const difference = target - els.bodyStage.scrollTop;
+  if(Math.abs(difference) < .6){
+    state.autoScrollTarget = null;
+    els.bodyStage.scrollTop = target;
+    return;
+  }
+  state.autoScrollUntil = Date.now() + 200;
+  els.bodyStage.scrollTop += difference * .14;
+  state.autoScrollFrame = requestAnimationFrame(stepBodyStageScroll);
+}
 
 function renderFoodCards(){
   els.foodGrid.innerHTML = FOODS.map(food => `
@@ -146,12 +183,65 @@ function buildMeal(){
   state.focusId = state.meal[0].id;
   state.time = 0;
   state.quizCompleted = false;
+  recordMealHistory();
   refreshBonusContent();
   els.timeline.value = minutesToTimelinePosition(0);
+  if(els.bodyStage){ els.bodyStage.scrollTop = 0; state.manualScrollUntil = 0; state.autoScrollUntil = 0; state.autoScrollTarget = null; if(state.autoScrollFrame){ cancelAnimationFrame(state.autoScrollFrame); state.autoScrollFrame = null; } }
   renderLegend();
+  renderHistory();
   renderSimulation();
   renderObservation();
   renderQuiz(state.meal.map(food => food.id));
+}
+
+function getMealHistoryLabel(){
+  const allSelected = state.selected.size === FOODS.length && FOODS.every(food => state.selected.has(food.id));
+  if(allSelected) return '全部食物';
+  const preset = PRESET_MEALS.find(item => item.id === state.presetId);
+  return preset?.name || '自選餐點';
+}
+
+function recordMealHistory(){
+  const foodIds = [...state.selected];
+  if(!foodIds.length) return;
+  const signature = [...foodIds].sort().join('|');
+  const record = { signature, foodIds, label:getMealHistoryLabel(), presetId:state.presetId || null };
+  const existingIndex = state.history.findIndex(item => item.signature === signature);
+  if(existingIndex >= 0) state.history.splice(existingIndex, 1);
+  state.history.unshift(record);
+  state.history = state.history.slice(0, MAX_HISTORY);
+}
+
+function renderHistory(){
+  if(!els.mealHistory || !els.historyCount) return;
+  els.historyCount.textContent = `${state.history.length} / ${MAX_HISTORY}`;
+  if(!state.history.length){
+    els.mealHistory.innerHTML = '<p class="history-empty">載入餐點後，最近使用的餐點會保留在這裡。</p>';
+    return;
+  }
+  const visibleIconCount = 4;
+  els.mealHistory.innerHTML = state.history.map((record, index) => {
+    const foods = record.foodIds.map(id => FOODS.find(food => food.id === id)).filter(Boolean);
+    const hiddenCount = Math.max(0, foods.length - visibleIconCount);
+    const icons = foods.slice(0, visibleIconCount).map(food => `<span class="history-icon" aria-hidden="true">${food.icon}</span>`).join('');
+    const iconMarkup = hiddenCount ? `<span class="history-ellipsis" aria-hidden="true">…</span>${icons}` : icons;
+    const names = foods.map(food => food.name).join('、');
+    return `<div class="history-entry"><button type="button" class="history-item" data-history-index="${index}" aria-label="套用歷史餐點：${record.label}，包含${names}"><span class="history-icons">${iconMarkup}</span><span class="history-item-label">${record.label}</span></button><span class="history-detail" role="tooltip">${names || '沒有食物資料'}<br><small>點擊即可套用，之後仍可手動調整</small></span></div>`;
+  }).join('');
+}
+
+function applyHistoryMeal(index){
+  const record = state.history[index];
+  if(!record) return;
+  const validIds = record.foodIds.filter(id => FOODS.some(food => food.id === id));
+  if(!validIds.length){
+    alert('這筆歷史餐點資料已無法使用，請重新選擇食物。');
+    return;
+  }
+  state.selected = new Set(validIds);
+  state.presetId = record.presetId || null;
+  syncFoodSelectionUI();
+  buildMeal();
 }
 
 function getFoodStage(food, t){
@@ -246,6 +336,7 @@ function renderSimulation(){
   renderTimelineWarning();
   renderFocus();
   renderSpeedNotice();
+  updateBodyStageScroll();
 }
 
 function renderFocus(){
@@ -572,15 +663,17 @@ function resetAll(){
   state.selected.clear(); state.meal=[]; state.focusId=null; state.time=0; state.playing=false; state.presetId=null; state.quizQuestions=[]; state.quizIndex=0; state.quizAnswered=false; state.quizCorrect=0; state.quizCompleted=false; state.puzzle=null; state.puzzleRevealed=false; state.joke=null; state.jokeReasonRevealed=false;
   clearInterval(state.timer);
   els.selectedCount.textContent='0 種'; els.timeline.value=minutesToTimelinePosition(0); els.playBtn.textContent='▶'; els.mealLegend.innerHTML='';
+  if(els.bodyStage){ els.bodyStage.scrollTop = 0; state.manualScrollUntil = 0; state.autoScrollUntil = 0; state.autoScrollTarget = null; if(state.autoScrollFrame){ cancelAnimationFrame(state.autoScrollFrame); state.autoScrollFrame = null; } }
   syncFoodSelectionUI();
   renderLegend();
+  renderHistory();
   renderSimulation();
   renderObservation();
   renderQuiz([]);
 }
 
 els.loadMealBtn.addEventListener('click', buildMeal);
-els.timeline.addEventListener('input', e => { state.time=timelinePositionToMinutes(e.target.value); renderSimulation(); });
+els.timeline.addEventListener('input', e => { state.time=timelinePositionToMinutes(e.target.value); state.manualScrollUntil = 0; renderSimulation(); });
 els.playBtn.addEventListener('click', togglePlay);
 els.prevBtn.addEventListener('click',()=>jumpStage(-1));
 els.nextBtn.addEventListener('click',()=>jumpStage(1));
@@ -588,6 +681,27 @@ els.speedSelect.addEventListener('change', renderSpeedNotice);
 els.flowModeFixedBtn.addEventListener('click',()=>setFlowMode('fixed'));
 els.flowModeSegmentedBtn.addEventListener('click',()=>setFlowMode('segmented'));
 els.resetBtn.addEventListener('click',resetAll);
+els.autoFollowBtn.addEventListener('click', () => {
+  state.autoFollow = !state.autoFollow;
+  els.autoFollowBtn.setAttribute('aria-pressed', String(state.autoFollow));
+  els.autoFollowBtn.textContent = `自動跟隨：${state.autoFollow ? '開啟' : '關閉'}`;
+  if(state.autoFollow){ state.manualScrollUntil = 0; state.autoScrollTarget = null; }
+  else if(state.autoScrollFrame){ cancelAnimationFrame(state.autoScrollFrame); state.autoScrollFrame = null; state.autoScrollTarget = null; }
+  updateBodyStageScroll();
+});
+els.bodyStage.addEventListener('scroll', () => {
+  if(Date.now() >= state.autoScrollUntil){
+    state.manualScrollUntil = Date.now() + 3000;
+    state.autoScrollTarget = null;
+    if(state.autoScrollFrame){ cancelAnimationFrame(state.autoScrollFrame); state.autoScrollFrame = null; }
+  }
+});
+window.addEventListener('resize', syncDesktopLayout);
+els.mealHistory.addEventListener('click', event => {
+  const button = event.target.closest('[data-history-index]');
+  if(!button) return;
+  applyHistoryMeal(Number(button.dataset.historyIndex));
+});
 els.puzzleRevealBtn.addEventListener('click',()=>{
   if(!state.quizCompleted || !state.puzzle) return;
   state.puzzleRevealed = true;
@@ -640,8 +754,10 @@ els.challengeQuestions.addEventListener('click', event => {
 
 renderFoodCards();
 renderPresets();
+syncDesktopLayout();
 setFlowMode(state.flowMode);
 renderLegend();
+renderHistory();
 renderSimulation();
 renderObservation();
 renderQuiz([]);

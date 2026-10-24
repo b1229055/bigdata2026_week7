@@ -77,18 +77,26 @@
       </div>
 
       <div class="simulator-layout">
-        <div class="body-stage" id="bodyStage">
-          <img
-            id="bodyImage"
-            class="body-image"
-            src="assets/digestive-system-zh-hant.svg"
-            alt="人體消化系統示意圖"
-            loading="eager"
-            decoding="sync"
-            draggable="false"
-          />
+        <div class="body-stage-wrap">
+          <div class="stage-scroll-controls">
+            <p class="stage-scroll-hint">↕ 可上下滾動查看完整消化器官與食物位置；超過半數食物下移時會自動跟隨</p>
+            <button id="autoFollowBtn" type="button" class="stage-follow-btn" aria-pressed="true">自動跟隨：開啟</button>
+          </div>
+          <div class="body-stage" id="bodyStage" tabindex="0" aria-label="可滾動查看完整人體消化器官與食物位置">
+            <div class="body-stage-canvas">
+              <img
+                id="bodyImage"
+                class="body-image"
+                src="assets/digestive-system-zh-hant.svg"
+                alt="人體消化系統示意圖"
+                loading="eager"
+                decoding="sync"
+                draggable="false"
+              />
 
-          <div id="foodParticles" class="food-particles" aria-live="polite"></div>
+              <div id="foodParticles" class="food-particles" aria-live="polite"></div>
+            </div>
+          </div>
         </div>
 
         <aside class="info-card" id="infoCard">
@@ -154,6 +162,14 @@
         <span id="legendCount">尚未載入</span>
       </div>
       <div id="mealLegend" class="meal-legend" aria-label="目前餐點食物列表"></div>
+
+      <section class="history-section" aria-labelledby="historyTitle">
+        <div class="history-heading">
+          <span id="historyTitle">歷史紀錄</span>
+          <span id="historyCount" class="history-count">0 / 5</span>
+        </div>
+        <div id="mealHistory" class="meal-history" aria-live="polite"></div>
+      </section>
     </section>
   </main>
 
@@ -192,6 +208,7 @@
       <li>設定份量與咀嚼程度，再按「把食物放入消化道」。</li>
       <li>拖動時間軸，或按播放，查看每種食物在消化道中的位置。</li>
       <li>點選彩色食物粒子或下方圖例，查看個別食物狀態。</li>
+      <li>中央人體圖可上下滾動；歷史紀錄可點擊重新套用，移入或聚焦可查看完整食物。</li>
     </ol>
     <button id="closeTourBtn" class="primary">開始探索</button>
   </dialog>
