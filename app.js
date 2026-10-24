@@ -49,10 +49,10 @@ const FOOD_KNOWLEDGE = {
   hard: ['粗硬或顆粒大的食物需要更多咀嚼與胃部研磨。', '纖維、脂肪與食物結構都可能讓整段消化旅程變長。']
 };
 
-const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null, flowMode:'fixed', quizQuestions:[], quizIndex:0, quizAnswered:false, quizCorrect:0, quizCompleted:false, puzzle:null, puzzleRevealed:false };
+const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null, flowMode:'fixed', quizQuestions:[], quizIndex:0, quizAnswered:false, quizCorrect:0, quizCompleted:false, puzzle:null, puzzleRevealed:false, joke:null, jokeReasonRevealed:false };
 
 const els = Object.fromEntries([
-  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','flowModeFixedBtn','flowModeSegmentedBtn','speedNotice','foodParticles','mealLegend','legendCount','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','observationTitle','observationText','observationFacts','puzzleSection','puzzlePrompt','puzzleHint','puzzleAnswer','puzzleRevealBtn','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
+  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','flowModeFixedBtn','flowModeSegmentedBtn','speedNotice','foodParticles','mealLegend','legendCount','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','observationTitle','observationText','observationFacts','puzzleSection','puzzlePrompt','puzzleHint','puzzleAnswer','puzzleRevealBtn','jokeSection','jokeText','jokeReason','jokeReasonBtn','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
 ].map(id => [id, document.getElementById(id)]));
 
 function renderFoodCards(){
@@ -73,7 +73,11 @@ function renderFoodCards(){
       state.quizCompleted = false;
       state.puzzle = null;
       state.puzzleRevealed = false;
+      state.joke = null;
+      state.jokeReasonRevealed = false;
       syncFoodSelectionUI();
+      renderPuzzleSection();
+      renderJokeSection();
     });
   });
 }
@@ -142,8 +146,7 @@ function buildMeal(){
   state.focusId = state.meal[0].id;
   state.time = 0;
   state.quizCompleted = false;
-  state.puzzle = pickPuzzle(state.meal.map(food => food.id));
-  state.puzzleRevealed = false;
+  refreshBonusContent();
   els.timeline.value = minutesToTimelinePosition(0);
   renderLegend();
   renderSimulation();
@@ -352,11 +355,29 @@ function renderObservation(){
   renderPuzzleSection();
 }
 
-function pickPuzzle(selectedIds){
+function pickFromBank(bank, previousId){
+  if(!bank.length) return null;
+  const alternatives = previousId ? bank.filter(item => item.id !== previousId) : bank;
+  return shuffle(alternatives.length ? alternatives : bank)[0] || null;
+}
+
+function pickPuzzle(previousId){
   const bank = Array.isArray(window.PUZZLE_BANK) ? window.PUZZLE_BANK : [];
-  const selected = new Set(selectedIds);
-  const related = bank.filter(puzzle => puzzle.foods?.some(id => selected.has(id)));
-  return shuffle(related)[0] || null;
+  return pickFromBank(bank, previousId);
+}
+
+function pickJoke(previousId){
+  const bank = Array.isArray(window.COLD_JOKE_BANK) ? window.COLD_JOKE_BANK : [];
+  return pickFromBank(bank, previousId);
+}
+
+function refreshBonusContent(){
+  const previousPuzzleId = state.puzzle?.id;
+  const previousJokeId = state.joke?.id;
+  state.puzzle = pickPuzzle(previousPuzzleId);
+  state.puzzleRevealed = false;
+  state.joke = pickJoke(previousJokeId);
+  state.jokeReasonRevealed = false;
 }
 
 function renderPuzzleSection(){
@@ -389,6 +410,24 @@ function renderPuzzleSection(){
   els.puzzleRevealBtn.disabled = state.puzzleRevealed;
 }
 
+function renderJokeSection(){
+  if(!els.jokeSection || !els.jokeText || !els.jokeReason || !els.jokeReasonBtn) return;
+  const hasMeal = state.meal.length > 0;
+  const unlocked = hasMeal && state.quizCompleted && state.quizCorrect >= 2;
+  els.jokeSection.classList.toggle('unlocked', unlocked);
+  els.jokeSection.classList.toggle('locked', !unlocked);
+  els.jokeText.textContent = unlocked
+    ? `🎉 ${state.joke?.text || '本次冷笑話暫時沒有載入，請重新載入餐點再試一次！'}`
+    : hasMeal
+      ? '🔒 完成全部挑戰題，並至少答對 2 題，才能解鎖冷笑話彩蛋。'
+      : '🔒 先載入餐點並完成全部挑戰題，且至少答對 2 題，解鎖冷笑話彩蛋。';
+  els.jokeReason.textContent = unlocked && state.joke ? `笑點：${state.joke.reason}` : '';
+  els.jokeReason.hidden = !unlocked || !state.jokeReasonRevealed;
+  els.jokeReasonBtn.hidden = !unlocked || !state.joke;
+  els.jokeReasonBtn.disabled = !unlocked || state.jokeReasonRevealed;
+  els.jokeReasonBtn.textContent = state.jokeReasonRevealed ? '已顯示理由' : '查看理由';
+}
+
 function shuffle(items){
   const result = [...items];
   for(let i = result.length - 1; i > 0; i--){
@@ -408,6 +447,8 @@ function renderQuiz(selectedIds){
   state.quizCompleted = false;
   state.puzzleRevealed = false;
   renderPuzzleSection();
+  state.jokeReasonRevealed = false;
+  renderJokeSection();
   if(!selected.size){
     els.challengeSummary.textContent = '請先選擇食物，再按「把食物放入消化道」開始挑戰題。';
     els.challengeQuestions.innerHTML = '<p class="challenge-empty">尚未載入餐點，請先選擇食物。</p>';
@@ -448,6 +489,7 @@ function renderCurrentQuiz(){
     els.challengeSummary.textContent = '本次挑戰已完成。';
     els.challengeQuestions.innerHTML = `<div class="quiz-result" role="status"><strong>答題完成</strong><span>答對 ${state.quizCorrect} 題，答錯 ${wrong} 題。</span><button type="button" class="primary" data-action="restart-quiz">重新抽題</button></div>`;
     renderObservation();
+    renderJokeSection();
     return;
   }
   const question = state.quizQuestions[state.quizIndex];
@@ -527,7 +569,7 @@ function jumpStage(direction){
 }
 
 function resetAll(){
-  state.selected.clear(); state.meal=[]; state.focusId=null; state.time=0; state.playing=false; state.presetId=null; state.quizQuestions=[]; state.quizIndex=0; state.quizAnswered=false; state.quizCorrect=0; state.quizCompleted=false; state.puzzle=null; state.puzzleRevealed=false;
+  state.selected.clear(); state.meal=[]; state.focusId=null; state.time=0; state.playing=false; state.presetId=null; state.quizQuestions=[]; state.quizIndex=0; state.quizAnswered=false; state.quizCorrect=0; state.quizCompleted=false; state.puzzle=null; state.puzzleRevealed=false; state.joke=null; state.jokeReasonRevealed=false;
   clearInterval(state.timer);
   els.selectedCount.textContent='0 種'; els.timeline.value=minutesToTimelinePosition(0); els.playBtn.textContent='▶'; els.mealLegend.innerHTML='';
   syncFoodSelectionUI();
@@ -551,11 +593,17 @@ els.puzzleRevealBtn.addEventListener('click',()=>{
   state.puzzleRevealed = true;
   renderPuzzleSection();
 });
+els.jokeReasonBtn.addEventListener('click',()=>{
+  if(!state.quizCompleted || state.quizCorrect < 2 || !state.joke) return;
+  state.jokeReasonRevealed = true;
+  renderJokeSection();
+});
 els.startTourBtn.addEventListener('click',()=>els.tourDialog.showModal());
 els.closeTourBtn.addEventListener('click',()=>els.tourDialog.close());
 els.challengeQuestions.addEventListener('click', event => {
   const actionButton = event.target.closest('[data-action]');
   if(actionButton?.dataset.action === 'restart-quiz'){
+    refreshBonusContent();
     renderQuiz(state.meal.map(food => food.id));
     return;
   }

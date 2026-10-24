@@ -163,12 +163,11 @@
       <h2 id="observationTitle">同一餐中的食物，不一定一起前進</h2>
       <p id="observationText">先選擇食物並開始模擬，再觀察不同食物在消化道中的速度差異。</p>
       <ul id="observationFacts" class="observation-facts" aria-label="消化系統知識"></ul>
-      <div id="puzzleSection" class="puzzle-section locked" role="status">
-        <strong>食物解謎專區</strong>
-        <p id="puzzlePrompt">🔒 先載入餐點並完成全部挑戰題，解鎖食物解謎。</p>
-        <p id="puzzleHint" class="puzzle-hint" hidden></p>
-        <p id="puzzleAnswer" class="puzzle-answer" hidden></p>
-        <button id="puzzleRevealBtn" type="button" class="secondary" hidden>顯示解答</button>
+      <div id="jokeSection" class="joke-section locked" role="status">
+        <strong>冷笑話專區</strong>
+        <p id="jokeText">🔒 先載入餐點並完成全部挑戰題，且至少答對 2 題，解鎖冷笑話彩蛋。</p>
+        <p id="jokeReason" class="joke-reason" hidden></p>
+        <button id="jokeReasonBtn" type="button" class="secondary" hidden>查看理由</button>
       </div>
     </div>
     <div class="learning-card challenge-card">
@@ -176,6 +175,13 @@
       <h2>依目前餐點回答問題</h2>
       <p id="challengeSummary" class="challenge-summary">請先選擇食物，再按「把食物放入消化道」開始挑戰題。</p>
       <div id="challengeQuestions" class="challenge-questions" aria-live="polite"></div>
+      <div id="puzzleSection" class="puzzle-section locked" role="status">
+        <strong>食物解謎專區</strong>
+        <p id="puzzlePrompt">🔒 先載入餐點並完成全部挑戰題，解鎖食物解謎。</p>
+        <p id="puzzleHint" class="puzzle-hint" hidden></p>
+        <p id="puzzleAnswer" class="puzzle-answer" hidden></p>
+        <button id="puzzleRevealBtn" type="button" class="secondary" hidden>顯示解答</button>
+      </div>
     </div>
   </section>
 
@@ -192,6 +198,7 @@
 
   <script src="question-bank.js"></script>
   <script src="joke-bank.js"></script>
+  <script src="cold-joke-bank.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
