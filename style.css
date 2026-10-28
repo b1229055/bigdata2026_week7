@@ -67,7 +67,7 @@ button:hover { transform: translateY(-1px); }
 .panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 12px; }
 .panel-heading h2 { margin: 2px 0 0; font-size: 1.2rem; }
 .badge { background: #e6f4ed; color: var(--primary-dark); padding: 6px 10px; border-radius: 999px; font-weight: 800; }
-.food-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.food-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 430px; overflow-y: auto; overflow-x: hidden; padding: 2px 6px 2px 2px; align-content: start; scrollbar-gutter: stable; overscroll-behavior: contain; }
 .food-card {
   position: relative;
   display: flex;
@@ -287,11 +287,14 @@ select {
 .comparison-sort-btn { padding:7px 10px; font-size:.74rem; white-space:nowrap; }
 .comparison-sort-btn:disabled { opacity:.55; cursor:not-allowed; transform:none; }
 .comparison-summary { margin:8px 0 10px; color:var(--muted); font-size:.78rem; line-height:1.45; }
-.digestion-comparison { display:grid; gap:7px; }
+.digestion-comparison { display:grid; gap:7px; max-height:300px; overflow-y:auto; overflow-x:hidden; padding:2px 6px 2px 2px; scrollbar-gutter:stable; overscroll-behavior:contain; align-content:start; }
 .comparison-empty { margin:0; color:var(--muted); font-size:.78rem; }
 .comparison-row { width:100%; display:grid; grid-template-columns:125px minmax(80px,1fr) 112px; align-items:center; gap:9px; padding:8px 9px; border:1px solid var(--line); border-radius:12px; background:white; color:var(--text); text-align:left; }
 .comparison-row:hover, .comparison-row:focus-visible, .comparison-row.active { border-color:var(--primary); background:#f0faf4; outline:3px solid rgba(36,135,109,.12); }
 .comparison-row:hover, .comparison-row:focus-visible { transform:none; }
+.comparison-row.over-limit { border:2px solid #d73445; background:#fff5f5; }
+.comparison-row.over-limit:hover, .comparison-row.over-limit:focus-visible, .comparison-row.over-limit.active { border-color:#d73445; background:#fff0f0; outline-color:rgba(215,52,69,.18); }
+.comparison-row.over-limit .comparison-bar { background:linear-gradient(90deg, #ef8b8b, #d73445); }
 .comparison-food { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.78rem; font-weight:800; }
 .comparison-track { height:10px; overflow:hidden; border-radius:999px; background:#e5eee9; }
 .comparison-bar { display:block; width:var(--comparison-width); height:100%; border-radius:inherit; background:linear-gradient(90deg, #65c09a, #24876d); }
@@ -409,6 +412,7 @@ html.desktop-wide .info-card { height: clamp(330px, 48vh, 500px); }
 @media (max-width: 620px) {
   .hero, .app-shell, .learning-section { padding-left:14px; padding-right:14px; }
   .food-grid { grid-template-columns:1fr 1fr; }
+  .food-grid { max-height:360px; }
   .controls-stack { grid-template-columns:1fr; }
   .body-stage { min-height:0; height:clamp(390px, 66vh, 540px); }
   .body-stage-canvas { height:700px; }

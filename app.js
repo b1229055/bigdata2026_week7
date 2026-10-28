@@ -483,7 +483,9 @@ function renderComparison(){
   els.digestionComparison.innerHTML = sorted.map(food => {
     const completionWidth = Math.max(5, Math.round(food.times.rectumEnd / maxCompletion * 100));
     const active = food.id === state.focusId ? ' active' : '';
-    return `<button type="button" class="comparison-row${active}" data-comparison-id="${food.id}" aria-label="聚焦${food.name}的消化動畫">
+    const overThreeDays = food.times.rectumEnd > MAX_TIMELINE;
+    const warning = overThreeDays ? '，完成時間超過 72 小時' : '';
+    return `<button type="button" class="comparison-row${active}${overThreeDays ? ' over-limit' : ''}" data-comparison-id="${food.id}" aria-label="聚焦${food.name}的消化動畫${warning}" title="${food.name}${warning}">
       <span class="comparison-food">${food.icon} ${food.name}</span>
       <span class="comparison-track"><span class="comparison-bar" style="--comparison-width:${completionWidth}%"></span></span>
       <span class="comparison-times">離胃 ${formatTime(food.times.stomachEnd)}<br>完成 ${formatTime(food.times.rectumEnd)}</span>
