@@ -32,6 +32,18 @@
 
       <div id="foodGrid" class="food-grid"></div>
 
+      <section class="calorie-panel" aria-labelledby="calorieTitle">
+        <div class="calorie-heading">
+          <div>
+            <p class="step-label">營養估算</p>
+            <h3 id="calorieTitle">目前選擇的熱量</h3>
+          </div>
+          <span class="calorie-unit">kcal</span>
+        </div>
+        <p id="calorieSummary" class="calorie-summary">選擇食物後，這裡會顯示每種食物的估計克數與熱量。</p>
+        <div id="calorieBreakdown" class="calorie-breakdown" aria-live="polite"></div>
+      </section>
+
       <div class="preset-section" aria-labelledby="presetTitle">
         <div class="preset-heading">
           <p class="step-label">快速開始</p>
@@ -232,6 +244,7 @@
   <script src="question-bank.js"></script>
   <script src="joke-bank.js"></script>
   <script src="cold-joke-bank.js"></script>
+  <script src="nutrition-data.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

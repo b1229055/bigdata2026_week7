@@ -70,7 +70,7 @@ const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false
 let organGuideKey = 'mouth';
 
 const els = Object.fromEntries([
-  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','flowModeFixedBtn','flowModeSegmentedBtn','speedNotice','bodyStage','foodParticles','autoFollowBtn','infoCard','mealHistory','historyCount','comparisonSummary','digestionComparison','sortComparisonBtn','organGuideButtons','organGuideName','organGuideDescription','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','earlyEndNotice','observationTitle','observationText','observationFacts','puzzleSection','puzzlePrompt','puzzleHint','puzzleAnswer','puzzleRevealBtn','jokeSection','jokeText','jokeReason','jokeReasonBtn','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
+  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','flowModeFixedBtn','flowModeSegmentedBtn','speedNotice','bodyStage','foodParticles','autoFollowBtn','infoCard','mealHistory','historyCount','comparisonSummary','digestionComparison','sortComparisonBtn','organGuideButtons','organGuideName','organGuideDescription','calorieSummary','calorieBreakdown','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','earlyEndNotice','observationTitle','observationText','observationFacts','puzzleSection','puzzlePrompt','puzzleHint','puzzleAnswer','puzzleRevealBtn','jokeSection','jokeText','jokeReason','jokeReasonBtn','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
 ].map(id => [id, document.getElementById(id)]));
 
 function syncDesktopLayout(){
@@ -145,6 +145,40 @@ function findMatchingPresetId(foodIds = state.selected){
 
 function getSelectLabel(select, value){
   return [...(select?.options || [])].find(option => option.value === value)?.textContent || value;
+}
+
+function getCalorieFoodData(foodId){
+  return window.CALORIE_MODEL?.foods?.[foodId] || { normalGrams:0, normalKcal:0 };
+}
+
+function renderCalorieSummary(){
+  if(!els.calorieSummary || !els.calorieBreakdown) return;
+  const selectedFoods = [...state.selected].map(id => FOODS.find(food => food.id === id)).filter(Boolean);
+  if(!selectedFoods.length){
+    els.calorieSummary.textContent = '選擇食物後，這裡會顯示每種食物的估計克數與熱量。';
+    els.calorieBreakdown.innerHTML = '<p class="calorie-empty">尚未選擇食物。</p>';
+    return;
+  }
+  const portionValue = els.portionSelect?.value || '1';
+  const portionFactor = Number(portionValue) || 1;
+  const portionLabel = window.CALORIE_MODEL?.portionMultipliers?.[portionValue] || getSelectLabel(els.portionSelect, portionValue);
+  const rows = selectedFoods.map(food => {
+    const data = getCalorieFoodData(food.id);
+    return {
+      ...food,
+      grams: Math.round(data.normalGrams * portionFactor),
+      kcal: Math.round(data.normalKcal * portionFactor)
+    };
+  });
+  const totalKcal = rows.reduce((sum, food) => sum + food.kcal, 0);
+  els.calorieSummary.textContent = `${portionLabel}（${portionFactor} 倍）：目前選擇 ${rows.length} 種食物，總熱量約 ${totalKcal} kcal。`;
+  els.calorieBreakdown.innerHTML = rows.map(food => `
+    <div class="calorie-row">
+      <span class="calorie-food">${food.icon} ${food.name}</span>
+      <span class="calorie-grams">${food.grams} g</span>
+      <strong>${food.kcal} kcal</strong>
+    </div>
+  `).join('');
 }
 
 function updateBodyStageScroll(){
@@ -246,6 +280,7 @@ function syncFoodSelectionUI(){
   els.presetGrid.querySelectorAll('.preset-card').forEach(button => {
     button.classList.toggle('active', button.dataset.presetId === state.presetId);
   });
+  renderCalorieSummary();
   renderObservation();
 }
 
@@ -840,6 +875,7 @@ function resetAll(){
 }
 
 els.loadMealBtn.addEventListener('click', buildMeal);
+els.portionSelect.addEventListener('change', renderCalorieSummary);
 els.timeline.addEventListener('input', e => { const requested = timelinePositionToMinutes(e.target.value); state.time = state.earlyEnded ? Math.min(requested, state.earlyEndTime) : requested; state.manualScrollUntil = 0; els.timeline.value = minutesToTimelinePosition(state.time); renderSimulation(); });
 els.playBtn.addEventListener('click', togglePlay);
 els.prevBtn.addEventListener('click',()=>jumpStage(-1));
@@ -925,6 +961,7 @@ els.challengeQuestions.addEventListener('click', event => {
 
 renderFoodCards();
 renderPresets();
+renderCalorieSummary();
 syncDesktopLayout();
 setFlowMode(state.flowMode);
 renderLegend();

@@ -123,6 +123,18 @@ button:hover { transform: translateY(-1px); }
 .food-icon { font-size: 1.65rem; }
 .food-card strong { display:block; font-size: .95rem; }
 .food-card small { color: var(--muted); font-size: .75rem; }
+.calorie-panel { margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:16px; background:#f7fcfa; }
+.calorie-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.calorie-heading h3 { margin:2px 0 0; font-size:.94rem; }
+.calorie-heading .step-label { margin:0; font-size:.68rem; }
+.calorie-unit { padding:4px 7px; border-radius:999px; background:#e6f4ed; color:var(--primary-dark); font-size:.7rem; font-weight:800; }
+.calorie-summary { margin:7px 0 9px; color:var(--muted); font-size:.74rem; line-height:1.45; }
+.calorie-breakdown { display:grid; gap:5px; }
+.calorie-empty { margin:0; color:var(--muted); font-size:.74rem; }
+.calorie-row { display:grid; grid-template-columns:minmax(0,1fr) 54px 76px; align-items:center; gap:6px; padding:6px 7px; border:1px solid var(--line); border-radius:10px; background:#fff; font-size:.74rem; }
+.calorie-food { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:800; }
+.calorie-grams { color:var(--muted); text-align:right; white-space:nowrap; }
+.calorie-row strong { color:var(--primary-dark); text-align:right; white-space:nowrap; }
 .select-all-foods-btn { width:100%; text-align:left; color:var(--text); }
 .select-all-foods-btn:hover, .select-all-foods-btn:focus-visible { border-color:var(--primary); background:#f7fcfa; outline:3px solid rgba(36,135,109,.15); }
 .preset-section { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
@@ -361,6 +373,8 @@ dialog li { margin-bottom:10px; line-height:1.6; }
   .food-icon { font-size: 1.35rem; }
   .food-card strong { font-size: .86rem; }
   .food-card small { font-size: .68rem; }
+  .calorie-panel { padding:10px; }
+  .calorie-row { grid-template-columns:minmax(0,1fr) 50px 70px; font-size:.7rem; }
   .preset-section { margin-top: 10px; padding-top: 10px; }
   .preset-card { padding: 8px 10px; }
   .controls-stack { margin-top: 8px; }
