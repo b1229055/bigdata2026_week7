@@ -281,6 +281,29 @@ select {
 .history-ellipsis { color:var(--muted); font-size:.9rem; letter-spacing:0; margin-right:3px; }
 .history-detail { position:absolute; z-index:20; left:0; right:0; top:calc(100% + 5px); padding:9px 10px; border:1px solid var(--line); border-radius:11px; background:#20372f; color:#fff; box-shadow:0 10px 25px rgba(38,53,47,.24); font-size:.74rem; line-height:1.45; opacity:0; visibility:hidden; transform:translateY(-3px); transition:opacity .16s ease, transform .16s ease, visibility .16s ease; pointer-events:none; }
 .history-entry:hover .history-detail, .history-entry:focus-within .history-detail { opacity:1; visibility:visible; transform:translateY(0); }
+.comparison-panel, .organ-guide-panel { margin-top:14px; padding:14px; border:1px solid var(--line); border-radius:18px; background:#fbfefc; }
+.comparison-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.comparison-heading h3, .organ-guide-panel h3 { margin:3px 0 0; font-size:1rem; }
+.comparison-sort-btn { padding:7px 10px; font-size:.74rem; white-space:nowrap; }
+.comparison-sort-btn:disabled { opacity:.55; cursor:not-allowed; transform:none; }
+.comparison-summary { margin:8px 0 10px; color:var(--muted); font-size:.78rem; line-height:1.45; }
+.digestion-comparison { display:grid; gap:7px; }
+.comparison-empty { margin:0; color:var(--muted); font-size:.78rem; }
+.comparison-row { width:100%; display:grid; grid-template-columns:125px minmax(80px,1fr) 112px; align-items:center; gap:9px; padding:8px 9px; border:1px solid var(--line); border-radius:12px; background:white; color:var(--text); text-align:left; }
+.comparison-row:hover, .comparison-row:focus-visible, .comparison-row.active { border-color:var(--primary); background:#f0faf4; outline:3px solid rgba(36,135,109,.12); }
+.comparison-row:hover, .comparison-row:focus-visible { transform:none; }
+.comparison-food { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.78rem; font-weight:800; }
+.comparison-track { height:10px; overflow:hidden; border-radius:999px; background:#e5eee9; }
+.comparison-bar { display:block; width:var(--comparison-width); height:100%; border-radius:inherit; background:linear-gradient(90deg, #65c09a, #24876d); }
+.comparison-times { color:var(--muted); font-size:.68rem; line-height:1.4; text-align:right; white-space:nowrap; }
+.organ-guide-intro { margin:7px 0 10px; color:var(--muted); font-size:.78rem; line-height:1.45; }
+.organ-guide-buttons { display:flex; flex-wrap:wrap; gap:7px; }
+.organ-guide-button { padding:7px 10px; border:1px solid var(--line); border-radius:10px; background:white; color:var(--muted); font-size:.76rem; }
+.organ-guide-button:hover, .organ-guide-button:focus-visible, .organ-guide-button.active { border-color:var(--primary); background:#e6f4ed; color:var(--primary-dark); outline:3px solid rgba(36,135,109,.12); }
+.organ-guide-button:hover, .organ-guide-button:focus-visible { transform:none; }
+.organ-guide-content { margin-top:10px; padding:10px 12px; border-radius:12px; background:#edf8f2; color:#315c4c; line-height:1.5; }
+.organ-guide-content strong { display:block; color:var(--primary-dark); font-size:.88rem; }
+.organ-guide-content p { margin:4px 0 0; font-size:.78rem; }
 .learning-section { max-width:1480px; margin:0 auto 20px; padding:0 28px; display:grid; grid-template-columns:1fr 1fr; gap:16px; }
 .learning-card { background:white; border-radius:20px; padding:16px; box-shadow:var(--shadow); }
 .learning-card h2 { margin:6px 0 10px; }
@@ -399,4 +422,8 @@ html.desktop-wide .info-card { height: clamp(330px, 48vh, 500px); }
   .flow-mode-controls { width:100%; }
   .flow-mode-btn { flex:1; }
   .meal-legend { grid-template-columns:1fr; }
+  .comparison-row { grid-template-columns:1fr; gap:6px; }
+  .comparison-times { text-align:left; }
+  .comparison-heading { align-items:flex-start; flex-direction:column; }
+  .comparison-sort-btn { width:100%; }
 }

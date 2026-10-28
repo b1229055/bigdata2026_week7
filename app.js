@@ -8,6 +8,9 @@ const FOODS = [
   { id:'pearl', name:'珍珠', icon:'⚫', category:'澱粉固體', color:'#684235', stomach:190, small:330, large:1380, digestibility:.83, note:'珍珠主要由澱粉組成，正常情況下可以被消化；充分咀嚼可降低後續處理負擔。' },
   { id:'bubbleTea', name:'珍珠奶茶', icon:'🧋', category:'混合食物', color:'#b9784d', stomach:150, small:280, large:1100, digestibility:.87, note:'奶茶液體、糖與珍珠不會完全同步前進；這裡以混合餐點簡化呈現。' },
   { id:'fried', name:'油炸食物', icon:'🍟', category:'高脂肪', color:'#ef8b2c', stomach:300, small:430, large:1600, digestibility:.74, note:'脂肪含量高的食物通常會讓胃排空速度變慢。' },
+  { id:'apple', name:'蘋果', icon:'🍎', category:'水果與纖維', color:'#e45b61', stomach:90, small:240, large:900, digestibility:.84, note:'蘋果含有水分、糖分與膳食纖維；可用來觀察營養吸收與纖維進入大腸的差異。' },
+  { id:'bread', name:'麵包', icon:'🍞', category:'澱粉固體', color:'#d4934d', stomach:120, small:240, large:1000, digestibility:.9, note:'麵包中的澱粉會在消化道中逐步分解，咀嚼程度會影響食物與消化液混合的效率。' },
+  { id:'egg', name:'雞蛋', icon:'🥚', category:'蛋白質', color:'#f0cf83', stomach:210, small:300, large:1100, digestibility:.86, note:'雞蛋含有蛋白質與脂肪；模型中會比液體和部分澱粉類食物在胃中停留更久。' },
   { id:'easy', name:'容易消化', icon:'🥣', category:'軟質食物', color:'#73bdb5', stomach:95, small:210, large:1000, digestibility:.95, note:'軟質、低脂、顆粒小的食物通常較快形成食糜。' },
   { id:'hard', name:'難以消化', icon:'🧱', category:'粗硬固體', color:'#6d7784', stomach:330, small:470, large:1900, digestibility:.62, note:'顆粒大、脂肪高或質地粗硬的食物，通常需要更長處理時間。' }
 ];
@@ -15,7 +18,8 @@ const FOODS = [
 const PRESET_MEALS = [
   { id:'compare', name:'液體與固體比較', description:'水、米飯、牛排', foods:['water','rice','steak'] },
   { id:'balanced', name:'一般餐點', description:'米飯、蔬菜、牛排', foods:['rice','vegetable','steak'] },
-  { id:'snack', name:'點心組合', description:'珍珠奶茶、珍珠、油炸食物', foods:['bubbleTea','pearl','fried'] }
+  { id:'snack', name:'點心組合', description:'珍珠奶茶、珍珠、油炸食物', foods:['bubbleTea','pearl','fried'] },
+  { id:'breakfast', name:'早餐組合', description:'麵包、雞蛋、蘋果', foods:['bread','egg','apple'] }
 ];
 
 const ORGANS = [
@@ -27,6 +31,15 @@ const ORGANS = [
   { key:'rectum', name:'直腸', pos:[50,93], state:'儲存殘渣，準備排出', digest:1, absorb:.95 },
   { key:'out', name:'已排出體外', pos:[50,98], state:'旅程完成', digest:1, absorb:.95 }
 ];
+
+const ORGAN_GUIDE = {
+  mouth: { description:'食物在口腔中被牙齒切碎，並與唾液混合形成食團。' },
+  esophagus: { description:'食道利用蠕動，把食團安全地推向胃。' },
+  stomach: { description:'胃會攪拌食物並混合胃液，讓食物逐漸變成較細的食糜。' },
+  smallIntestine: { description:'小腸是消化與營養吸收的主要場所，許多營養會在這裡進入血液。' },
+  largeIntestine: { description:'大腸會回收水分，並讓未被完全消化的纖維與殘渣逐漸成形。' },
+  rectum: { description:'直腸會暫時儲存消化後的殘渣，等待排出體外。' }
+};
 
 const MAX_TIMELINE = 4320;
 const TIMELINE_SLIDER_MAX = 4320;
@@ -46,14 +59,18 @@ const FOOD_KNOWLEDGE = {
   pearl: ['珍珠主要是澱粉固體，咀嚼程度會影響食物顆粒大小。', '較大的食物顆粒通常需要更多胃部攪拌，才會形成適合通過的食糜。'],
   bubbleTea: ['珍珠奶茶同時包含液體、糖與澱粉固體，不同成分不會完全同步前進。', '液體較快通過胃，珍珠等固體則需要更多攪拌與分解時間。'],
   fried: ['油炸食物的脂肪含量較高，常會讓胃排空速度變慢。', '高溫油炸會改變食物的質地與含水量，份量也會影響消化負擔。'],
+  apple: ['蘋果的水分與糖分較容易在前段處理，膳食纖維則可能進入大腸。', '充分咀嚼能讓水果顆粒變小，也能讓消化液更容易接觸食物。'],
+  bread: ['麵包中的澱粉會在口腔、小腸等階段逐步分解。', '麵包的質地與份量會影響形成食糜所需的攪拌時間。'],
+  egg: ['雞蛋的蛋白質會在胃與小腸中逐步分解成較小的成分。', '蛋白質與脂肪比例會影響食物在胃中停留的估計時間。'],
   easy: ['軟質、顆粒小的食物通常較容易與消化液混合。', '食物較容易形成食糜，不代表營養會在同一個器官全部吸收。'],
   hard: ['粗硬或顆粒大的食物需要更多咀嚼與胃部研磨。', '纖維、脂肪與食物結構都可能讓整段消化旅程變長。']
 };
 
-const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null, flowMode:'fixed', history:[], autoFollow:true, manualScrollUntil:0, autoScrollUntil:0, autoScrollFrame:null, autoScrollTarget:null, earlyEnded:false, earlyEndTime:null, quizQuestions:[], quizIndex:0, quizAnswered:false, quizCorrect:0, quizCompleted:false, puzzle:null, puzzleRevealed:false, joke:null, jokeReasonRevealed:false };
+const state = { selected:new Set(), meal:[], focusId:null, time:0, playing:false, timer:null, presetId:null, flowMode:'fixed', history:[], autoFollow:true, manualScrollUntil:0, autoScrollUntil:0, autoScrollFrame:null, autoScrollTarget:null, earlyEnded:false, earlyEndTime:null, comparisonSort:'completion', quizQuestions:[], quizIndex:0, quizAnswered:false, quizCorrect:0, quizCompleted:false, puzzle:null, puzzleRevealed:false, joke:null, jokeReasonRevealed:false };
+let organGuideKey = 'mouth';
 
 const els = Object.fromEntries([
-  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','flowModeFixedBtn','flowModeSegmentedBtn','speedNotice','bodyStage','foodParticles','autoFollowBtn','infoCard','mealLegend','legendCount','mealHistory','historyCount','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','earlyEndNotice','observationTitle','observationText','observationFacts','puzzleSection','puzzlePrompt','puzzleHint','puzzleAnswer','puzzleRevealBtn','jokeSection','jokeText','jokeReason','jokeReasonBtn','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
+  'foodGrid','presetGrid','selectedCount','portionSelect','chewSelect','loadMealBtn','timeline','timeLabel','playBtn','prevBtn','nextBtn','speedSelect','flowModeFixedBtn','flowModeSegmentedBtn','speedNotice','bodyStage','foodParticles','autoFollowBtn','infoCard','mealHistory','historyCount','comparisonSummary','digestionComparison','sortComparisonBtn','organGuideButtons','organGuideName','organGuideDescription','focusFoodName','focusSwatch','focusOrgan','focusState','focusDigestion','focusAbsorption','focusNext','digestProgress','scienceNote','focusWarning','timelineWarning','earlyEndNotice','observationTitle','observationText','observationFacts','puzzleSection','puzzlePrompt','puzzleHint','puzzleAnswer','puzzleRevealBtn','jokeSection','jokeText','jokeReason','jokeReasonBtn','resetBtn','startTourBtn','tourDialog','closeTourBtn','challengeQuestions','challengeSummary'
 ].map(id => [id, document.getElementById(id)]));
 
 function syncDesktopLayout(){
@@ -92,7 +109,7 @@ function getFoodCombinationName(foodIds){
   if(!orderedIds.length) return '空白餐點';
   const singleFoodNames = {
     water:'清涼水', alcohol:'醇香酒', drink:'沁甜飲', rice:'金穗飯', steak:'炙香牛',
-    vegetable:'鮮蔬盤', pearl:'珍珠圓', bubbleTea:'茶香珍奶', fried:'金脆薯條', easy:'綿滑粥品', hard:'厚實粗食'
+    vegetable:'鮮蔬盤', pearl:'珍珠圓', bubbleTea:'茶香珍奶', fried:'金脆薯條', apple:'紅顏果', bread:'麥香包', egg:'金黃蛋', easy:'綿滑粥品', hard:'厚實粗食'
   };
   if(orderedIds.length === 1) return singleFoodNames[orderedIds[0]] || '食物餐';
 
@@ -442,12 +459,60 @@ function renderSimulation(){
     const button = els.foodParticles.querySelector(`[data-id="${food.id}"]`);
     if(button) updateParticleButton(button, food, getFoodStage(food, state.time));
   });
-  updateLegendWarnings();
   renderTimelineWarning();
   renderEarlyEndNotice();
   renderFocus();
   renderSpeedNotice();
   updateBodyStageScroll();
+}
+
+function renderComparison(){
+  if(!els.digestionComparison || !els.comparisonSummary) return;
+  if(!state.meal.length){
+    els.comparisonSummary.textContent = '載入餐點後，這裡會比較每種食物的消化速度。';
+    els.digestionComparison.innerHTML = '<p class="comparison-empty">尚未載入餐點。</p>';
+    if(els.sortComparisonBtn) els.sortComparisonBtn.disabled = true;
+    return;
+  }
+  if(els.sortComparisonBtn) els.sortComparisonBtn.disabled = false;
+  const sorted = [...state.meal].sort((a,b) => state.comparisonSort === 'completion' ? a.times.rectumEnd - b.times.rectumEnd : a.times.stomachEnd - b.times.stomachEnd);
+  const fastestStomach = [...state.meal].sort((a,b) => a.times.stomachEnd - b.times.stomachEnd)[0];
+  const slowestCompletion = [...state.meal].sort((a,b) => b.times.rectumEnd - a.times.rectumEnd)[0];
+  const maxCompletion = Math.max(...state.meal.map(food => food.times.rectumEnd), 1);
+  els.comparisonSummary.textContent = `最先離開胃：${fastestStomach.name}（${formatTime(fastestStomach.times.stomachEnd)}）；最慢完成消化：${slowestCompletion.name}（${formatTime(slowestCompletion.times.rectumEnd)}）。`;
+  els.digestionComparison.innerHTML = sorted.map(food => {
+    const completionWidth = Math.max(5, Math.round(food.times.rectumEnd / maxCompletion * 100));
+    const active = food.id === state.focusId ? ' active' : '';
+    return `<button type="button" class="comparison-row${active}" data-comparison-id="${food.id}" aria-label="聚焦${food.name}的消化動畫">
+      <span class="comparison-food">${food.icon} ${food.name}</span>
+      <span class="comparison-track"><span class="comparison-bar" style="--comparison-width:${completionWidth}%"></span></span>
+      <span class="comparison-times">離胃 ${formatTime(food.times.stomachEnd)}<br>完成 ${formatTime(food.times.rectumEnd)}</span>
+    </button>`;
+  }).join('');
+  els.digestionComparison.querySelectorAll('[data-comparison-id]').forEach(button => button.addEventListener('click', () => {
+    state.focusId = button.dataset.comparisonId;
+    renderLegend();
+    renderSimulation();
+  }));
+  els.sortComparisonBtn.textContent = state.comparisonSort === 'completion' ? '改依離胃時間排序' : '改依完成時間排序';
+}
+
+function renderOrganGuide(){
+  if(!els.organGuideButtons || !els.organGuideName) return;
+  const keys = Object.keys(ORGAN_GUIDE);
+  const activeKey = ORGAN_GUIDE[organGuideKey] ? organGuideKey : keys[0];
+  organGuideKey = activeKey;
+  els.organGuideButtons.innerHTML = keys.map(key => `<button type="button" class="organ-guide-button${key === activeKey ? ' active' : ''}" data-organ-guide="${key}" aria-pressed="${key === activeKey}">${ORGANS.find(organ => organ.key === key)?.name || key}</button>`).join('');
+  els.organGuideButtons.querySelectorAll('[data-organ-guide]').forEach(button => button.addEventListener('click', () => activateOrganGuide(button.dataset.organGuide)));
+  const organ = ORGANS.find(item => item.key === activeKey);
+  els.organGuideName.textContent = organ?.name || '消化器官';
+  els.organGuideDescription.textContent = ORGAN_GUIDE[activeKey].description;
+}
+
+function activateOrganGuide(key){
+  if(!ORGAN_GUIDE[key]) return;
+  organGuideKey = key;
+  renderOrganGuide();
 }
 
 function renderFocus(){
@@ -501,25 +566,7 @@ function getNextText(food, key){
 }
 
 function renderLegend(){
-  els.legendCount.textContent = state.meal.length ? `${state.meal.length} 種` : '尚未載入';
-  els.mealLegend.innerHTML = state.meal.length ? state.meal.map((food, index) => `<button type="button" class="legend-item ${food.id===state.focusId?'active':''}" data-id="${food.id}" aria-label="${food.name}"><span class="legend-index">${index + 1}</span><span class="legend-dot" style="background:${food.color}"></span><span>${food.icon} ${food.name}</span><span class="legend-warning" aria-hidden="true" hidden></span></button>`).join('') : '<p class="legend-empty">選擇餐點後，這裡會列出每一種食物。</p>';
-  els.mealLegend.querySelectorAll('.legend-item').forEach(btn => btn.addEventListener('click',()=>{ state.focusId=btn.dataset.id; renderLegend(); renderSimulation(); }));
-  updateLegendWarnings();
-}
-
-function updateLegendWarnings(){
-  els.mealLegend.querySelectorAll('.legend-item').forEach(button => {
-    const food = state.meal.find(item => item.id === button.dataset.id);
-    if(!food) return;
-    const incompleteAtEnd = isIncompleteAtEnd(food);
-    button.classList.toggle('incomplete', incompleteAtEnd);
-    button.setAttribute('aria-label', incompleteAtEnd ? `${food.name}，72 小時仍未完成消化` : food.name);
-    const warning = button.querySelector('.legend-warning');
-    if(warning){
-      warning.hidden = !incompleteAtEnd;
-      warning.setAttribute('aria-hidden', String(!incompleteAtEnd));
-    }
-  });
+  renderComparison();
 }
 
 function renderObservation(){
@@ -656,10 +703,10 @@ function renderQuiz(selectedIds){
     els.challengeQuestions.innerHTML = '<p class="challenge-empty">尚未載入餐點，請先選擇食物。</p>';
     return;
   }
-  const questionCount = Math.min(10, Math.max(3, selected.size));
   const related = bank.filter(question => question.foods.some(id => selected.has(id)));
   const fallback = bank.filter(question => !question.foods.some(id => selected.has(id)));
   const pool = [...new Map([...shuffle(related), ...shuffle(fallback)].map(question => [question.id, question])).values()];
+  const questionCount = Math.min(10, Math.max(3, related.length));
   const answerPositions = shuffle([0, 1, 2]);
   state.quizQuestions = pool.slice(0, questionCount).map((question, index) => arrangeQuestionOptions(question, index, answerPositions));
   els.challengeSummary.textContent = selected.size ? `依目前選取的 ${selected.size} 種食物，準備回答 ${state.quizQuestions.length} 題。` : '載入餐點後會依食物種類隨機產生 3～10 題。';
@@ -780,7 +827,7 @@ function jumpStage(direction){
 function resetAll(){
   state.selected.clear(); state.meal=[]; state.focusId=null; state.time=0; state.playing=false; state.presetId=null; state.earlyEnded=false; state.earlyEndTime=null; state.quizQuestions=[]; state.quizIndex=0; state.quizAnswered=false; state.quizCorrect=0; state.quizCompleted=false; state.puzzle=null; state.puzzleRevealed=false; state.joke=null; state.jokeReasonRevealed=false;
   clearInterval(state.timer);
-  els.selectedCount.textContent='0 種'; els.timeline.value=minutesToTimelinePosition(0); els.playBtn.textContent='▶'; els.mealLegend.innerHTML='';
+  els.selectedCount.textContent='0 種'; els.timeline.value=minutesToTimelinePosition(0); els.playBtn.textContent='▶';
   if(els.bodyStage){ els.bodyStage.scrollTop = 0; state.manualScrollUntil = 0; state.autoScrollUntil = 0; state.autoScrollTarget = null; if(state.autoScrollFrame){ cancelAnimationFrame(state.autoScrollFrame); state.autoScrollFrame = null; } }
   syncFoodSelectionUI();
   renderLegend();
@@ -798,6 +845,10 @@ els.nextBtn.addEventListener('click',()=>jumpStage(1));
 els.speedSelect.addEventListener('change', renderSpeedNotice);
 els.flowModeFixedBtn.addEventListener('click',()=>setFlowMode('fixed'));
 els.flowModeSegmentedBtn.addEventListener('click',()=>setFlowMode('segmented'));
+els.sortComparisonBtn.addEventListener('click', () => {
+  state.comparisonSort = state.comparisonSort === 'completion' ? 'stomach' : 'completion';
+  renderComparison();
+});
 els.resetBtn.addEventListener('click',resetAll);
 els.autoFollowBtn.addEventListener('click', () => {
   state.autoFollow = !state.autoFollow;
@@ -877,5 +928,7 @@ setFlowMode(state.flowMode);
 renderLegend();
 renderHistory();
 renderSimulation();
+renderComparison();
+renderOrganGuide();
 renderObservation();
 renderQuiz([]);

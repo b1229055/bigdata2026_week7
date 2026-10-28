@@ -158,11 +158,26 @@
         <p id="earlyEndNotice" class="early-end-notice" role="status" hidden></p>
       </div>
 
-      <div class="meal-legend-heading">
-        <span>目前餐點食物列表</span>
-        <span id="legendCount">尚未載入</span>
-      </div>
-      <div id="mealLegend" class="meal-legend" aria-label="目前餐點食物列表"></div>
+      <section class="comparison-panel" aria-labelledby="comparisonTitle">
+        <div class="comparison-heading">
+          <div>
+            <h3 id="comparisonTitle">消化速度比較</h3>
+          </div>
+          <button id="sortComparisonBtn" type="button" class="secondary comparison-sort-btn">依完成時間排序</button>
+        </div>
+        <p id="comparisonSummary" class="comparison-summary">載入餐點後，這裡會比較每種食物的消化速度。</p>
+        <div id="digestionComparison" class="digestion-comparison" aria-live="polite"></div>
+      </section>
+
+      <section class="organ-guide-panel" aria-labelledby="organGuideTitle">
+        <h3 id="organGuideTitle">消化器官導覽</h3>
+        <p class="organ-guide-intro">點擊器官，查看這個器官在消化系統中的主要功能。</p>
+        <div id="organGuideButtons" class="organ-guide-buttons" role="group" aria-label="消化器官導覽按鈕"></div>
+        <div class="organ-guide-content" role="status" aria-live="polite">
+          <strong id="organGuideName">口腔</strong>
+          <p id="organGuideDescription">食物在口腔中被牙齒切碎，並與唾液混合形成食團。</p>
+        </div>
+      </section>
 
       <section class="history-section" aria-labelledby="historyTitle">
         <div class="history-heading">
@@ -208,7 +223,7 @@
       <li>從左側勾選一種或多種食物。</li>
       <li>設定份量與咀嚼程度，再按「把食物放入消化道」。</li>
       <li>拖動時間軸，或按播放，查看每種食物在消化道中的位置。</li>
-      <li>點選彩色食物粒子或下方圖例，查看個別食物狀態。</li>
+      <li>點選彩色食物粒子或消化速度比較中的食物，查看個別食物狀態。</li>
       <li>中央人體圖可上下滾動；歷史紀錄可點擊重新套用，移入或聚焦可查看完整食物。</li>
     </ol>
     <button id="closeTourBtn" class="primary">開始探索</button>
